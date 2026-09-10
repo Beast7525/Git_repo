@@ -31,17 +31,5 @@ const repoSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-repoSchema.pre("save", function(next) {
-  if (!this.repositoryName && this.name) {
-    this.repositoryName = this.name;
-  }
-
-  if (this.repositoryName && !this.name) {
-    this.name = this.repositoryName;
-  }
-
-  next();
-});
-
 // Map model to the explicit database collection named 'repositories'
 module.exports = mongoose.model("Repo", repoSchema, "repositories");
