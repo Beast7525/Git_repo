@@ -1,0 +1,37 @@
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+
+
+.box_Stars {
+  width: 100%;
+  min-height:120vh;
+  background: #fffefedc;
+  position: relative;
+}
+.Pro_logo {
+    top:60px;
+    left:80px;
+    border-radius: 50%;
+}
+.box_list{
+  position: absolute;
+  top:80px;
+  right:100px;
+  width:60%;
+  background: rgba(158, 150, 150, 0.664);
+  min-height: 260px;
+}

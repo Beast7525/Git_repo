@@ -1,0 +1,493 @@
+body{
+    margin: 0; 
+    padding: 0;
+    min-height: 120vh; 
+    color: #f5f6ef; 
+    background: #0c1110; 
+    font-family: 'Poppins', sans-serif; 
+
+}
+
+.user_profile_page {
+  min-height: 100vh;
+  width: 100%;
+  background: #f5f7fb;
+  padding-bottom: 50px;
+  box-sizing: border-box;
+}
+
+
+
+.box_user_profile {
+  width: 300px;
+  height: 500px;
+
+  margin: 60px 0 0 16%;
+
+  padding: 35px 25px;
+
+  background: #fffefe;
+
+  border-radius: 18px 0 0 18px;
+
+  box-sizing: border-box;
+
+  display: inline-flex;
+  vertical-align: top;
+
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+
+
+
+.profile_img {
+  width: 170px;
+  height: 170px;
+
+  object-fit: cover;
+
+  border-radius: 12px;
+
+  border: 5px solid #ffffff;
+
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+
+  margin-bottom: 30px;
+}
+
+
+/* =========================================
+   EDIT PROFILE BUTTON
+========================================= */
+
+.box_user_profile button {
+  width: 150px;
+
+  padding: 10px 15px;
+
+  background: #ffffff;
+
+  color: #24292f;
+
+  border: 1px solid #c9d1d9;
+
+  border-radius: 7px;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.box_user_profile button:hover {
+  background: #f3f4f6;
+  border-color: #8c959f;
+}
+
+
+.user_box {
+  width: 48%;
+  max-width: 600px;
+  height: 500px;
+
+  margin: 60px 0 0 0;
+
+  padding: 40px;
+  left: 3%;
+  transform: translateX(-3%);
+  background: #ffffff;
+
+  border-radius: 0 18px 18px 0;
+
+  box-sizing: border-box;
+
+  display: inline-block;
+  vertical-align: top;
+
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+
+/* =========================================
+   USERNAME
+========================================= */
+
+.user_box h1 {
+  margin: 0 0 35px;
+
+  font-size: 36px;
+
+  font-weight: 700;
+
+  color: #24292f;
+}
+
+
+/* =========================================
+   USER DETAILS
+========================================= */
+
+.user_box p {
+  margin: 18px 0;
+
+  font-size: 16px;
+
+  color: #57606a;
+
+  line-height: 1.5;
+}
+
+.user_box p strong {
+  display: inline-block;
+
+  width: 105px;
+
+  color: #24292f;
+
+  font-weight: 600;
+}
+
+
+/* =========================================
+   MOBILE - STACK ONLY ON SMALL SCREENS
+========================================= */
+
+@media (max-width: 800px) {
+
+  .box_user_profile {
+    width: 90%;
+    max-width: none;
+    height: auto;
+
+    margin: 30px auto 0;
+
+    display: flex;
+
+    border-radius: 18px 18px 0 0;
+  }
+
+  .user_box {
+    width: 90%;
+    max-width: none;
+    height: auto;
+
+    margin: 0 auto;
+
+    display: block;
+
+    border-radius: 0 0 18px 18px;
+  }
+}
+
+@media (max-width: 500px) {
+
+  .box_user_profile,
+  .user_box {
+    width: 94%;
+  }
+
+  .profile_img {
+    width: 140px;
+    height: 140px;
+  }
+
+  .user_box h1 {
+    font-size: 28px;
+  }
+}
+
+
+
+/* =========================================
+   EDIT PROFILE PAGE
+========================================= */
+
+.edit_profile_container {
+  width: 600px;
+
+  max-width: 92%;
+
+  margin: 50px auto;
+
+  padding: 35px;
+
+  background: #ffffff;
+
+  border-radius: 15px;
+
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+
+  box-sizing: border-box;
+}
+
+
+.edit_profile_container h2 {
+  margin: 0 0 25px;
+
+  font-size: 28px;
+
+  color: #24292f;
+}
+
+
+
+
+.edit_profile_image {
+  text-align: center;
+
+  margin-bottom: 30px;
+}
+
+
+.edit_profile_img {
+  width: 130px;
+  height: 130px;
+
+  border-radius: 50%;
+
+  object-fit: cover;
+
+  display: block;
+
+  margin: 0 auto 15px;
+
+  border: 4px solid #ffffff;
+
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.15);
+}
+
+
+.change_photo_btn {
+  display: inline-block !important;
+
+  width: auto !important;
+
+  padding: 9px 16px !important;
+
+  background: #0969da;
+
+  color: #ffffff !important;
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  font-size: 14px !important;
+
+  font-weight: 600;
+}
+
+
+.change_photo_btn:hover {
+  background: #0757b5;
+}
+
+
+
+.edit_profile_container > label {
+  display: block;
+
+  margin-top: 18px;
+
+  margin-bottom: 7px;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  color: #24292f;
+}
+
+
+.edit_profile_container input,
+.edit_profile_container textarea,
+.edit_profile_container select {
+  width: 100%;
+
+  padding: 11px 12px;
+
+  border: 1px solid #d0d7de;
+
+  border-radius: 7px;
+
+  outline: none;
+
+  font-size: 14px;
+
+  background: #ffffff;
+
+  color: #24292f;
+
+  box-sizing: border-box;
+}
+
+
+.edit_profile_container input:focus,
+.edit_profile_container textarea:focus,
+.edit_profile_container select:focus {
+  border-color: #0969da;
+
+  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.12);
+}
+
+
+.edit_profile_container textarea {
+  min-height: 100px;
+
+  resize: vertical;
+}
+
+
+
+.edit_profile_container small {
+  display: block;
+
+  margin-top: 6px;
+
+  color: #656d76;
+
+  font-size: 12px;
+}
+
+
+.checkbox_label {
+  display: flex !important;
+
+  align-items: center;
+
+  gap: 8px;
+
+  cursor: pointer;
+}
+.checkbox_label input {
+  width: auto !important;
+}
+
+.edit_profile_container h3 {
+  margin-top: 30px;
+
+  margin-bottom: 12px;
+
+  font-size: 18px;
+
+  color: #24292f;
+}
+
+
+.edit_profile_container h3 ~ input {
+  margin-bottom: 10px;
+}
+
+
+/* =========================================
+   SAVE / CANCEL
+========================================= */
+
+.edit_buttons {
+  display: flex;
+
+  gap: 10px;
+
+  margin-top: 25px;
+}
+
+
+.save_btn {
+  padding: 9px 18px;
+
+  border: none;
+
+  border-radius: 6px;
+
+  background: #1f883d;
+
+  color: #ffffff;
+
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+
+.save_btn:hover {
+  background: #1a7f37;
+}
+
+
+.cancel_btn {
+  padding: 9px 18px;
+
+  border: 1px solid #d0d7de;
+
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  color: #24292f;
+
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 800px) {
+
+  .user_profile_page {
+    display: block;
+  }
+
+  .box_user_profile {
+    width: 90%;
+    max-width: none;
+
+    margin: 30px auto 0;
+
+    border-radius: 18px 18px 0 0;
+
+    min-height: auto;
+  }
+
+  .user_box {
+    width: 90%;
+    max-width: none;
+
+    margin: 0 auto;
+
+    border-radius: 0 0 18px 18px;
+
+    min-height: auto;
+  }
+
+}
+
+
+@media (max-width: 500px) {
+
+  .box_user_profile,
+  .user_box {
+    width: 94%;
+  }
+
+  .profile_img {
+    width: 140px;
+    height: 140px;
+  }
+
+  .user_box h1 {
+    font-size: 28px;
+  }
+
+}

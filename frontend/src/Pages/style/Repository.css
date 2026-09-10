@@ -1,0 +1,116 @@
+.repository-page {
+    min-height: 100vh;
+    padding: 42px 24px 64px;
+    background: #102016;
+    color: #e7f1e5;
+    font-family: Georgia, "Times New Roman", serif;
+}
+
+.back-link {
+    display: block;
+    max-width: 680px;
+    margin: 0 auto 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #a7dda6;
+    cursor: pointer;
+    font: 600 .85rem Arial, sans-serif;
+}
+
+.repository-form-card {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 42px;
+    border: 1px solid rgba(167, 221, 166, .2);
+    border-radius: 18px;
+    background: #17271b;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .22);
+}
+
+.repository-form-heading { 
+    margin-bottom: 32px; 
+}
+.repository-eyebrow { 
+    margin: 0 0 10px; color: #e4bd71; font: 700 .7rem Arial, sans-serif; letter-spacing: .14em; 
+}
+.repository-form-heading h1 { 
+    margin: 0 0 10px; font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 500; 
+}
+.repository-form-heading p:last-child 
+{ max-width: 470px; margin: 0; color: #9eafa3; font: .95rem/1.6 Arial, sans-serif; 
+}
+
+form > label, legend 
+{ display: block; margin: 0 0 9px; color: #dcebd9; font: 600 .85rem Arial, sans-serif; 
+}
+form > input, form > textarea 
+{
+    box-sizing: border-box;
+    width: 100%;
+    padding: 13px 14px;
+    border: 1px solid rgba(205, 231, 203, .2);
+    border-radius: 8px;
+    outline: 0;
+    background: #0f1d14;
+    color: #e7f1e5;
+    font: .92rem Arial, sans-serif;
+}
+form > textarea 
+{ resize: vertical; 
+}
+form > input:focus, form > textarea:focus 
+{ border-color: #a7dda6; box-shadow: 0 0 0 3px rgba(167, 221, 166, .12); 
+}
+.field-hint 
+{ display: block; margin: 8px 0 25px; color: #748779; font: .75rem Arial, sans-serif; 
+}
+label span, legend span 
+{ color: #748779; font-weight: 400; 
+}
+fieldset 
+{ margin: 26px 0; padding: 0; border: 0; 
+}
+.visibility-option, .checkbox-option 
+{ display: flex; align-items: flex-start; gap: 11px; margin: 12px 0; color: #c5d7c2; font: .85rem Arial, sans-serif; cursor: pointer; 
+}
+.visibility-option input, .checkbox-option input 
+{ margin-top: 3px; accent-color: #a7dda6; 
+}
+.visibility-option strong 
+{ display: block; margin-bottom: 3px; color: #e7f1e5; 
+}
+.visibility-option small 
+{ color: #87998d; font-size: .76rem; 
+}
+.checkbox-option 
+{ align-items: center; margin-bottom: 30px; 
+}
+.checkbox-option input 
+{ margin: 0; 
+}
+.repository-form-actions 
+{ display: flex; justify-content: flex-end; gap: 12px; 
+}
+.cancel-button, .create-button 
+{ padding: 12px 17px; border-radius: 8px; cursor: pointer; font: 600 .8rem Arial, sans-serif; 
+}
+.cancel-button 
+{ border: 1px solid rgba(167, 221, 166, .3); background: transparent; color: #c5d7c2; 
+}
+.create-button 
+{ border: 0; background: #a7dda6; color: #102016; 
+}
+.cancel-button:hover, .create-button:hover 
+{ transform: translateY(-1px); 
+}
+.form-message 
+{ margin: 20px 0 0; color: #a7dda6; font: .84rem Arial, sans-serif; text-align: right; 
+}
+
+@media (max-width: 560px) {
+    .repository-page { padding: 25px 16px 40px; }
+    .repository-form-card { padding: 28px 22px; }
+    .repository-form-actions { justify-content: stretch; }
+    .cancel-button, .create-button { flex: 1; }
+}

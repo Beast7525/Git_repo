@@ -1,0 +1,35 @@
+import { Routes, Route } from "react-router-dom";
+import Home from "./Pages/Home";
+import Login from "./Pages/Login";
+import User from "./Pages/User";
+import User_profile from "./Pages/User_Profile";
+import dashboard from "./Pages/dashboard";
+import User_header from "./Pages/User_header";
+import Stars from "./Pages/Stars";
+import Issue from "./Pages/Issue";
+import Layout from "./Pages/Layout";
+import ForgotPassword from "./Pages/ForgotPassword";
+import Repository from "./Pages/Repostiory";
+import AdminDashboard from "./Pages/admin/AdminDashboard";
+
+function App() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/User" element={<User />} />
+      <Route path="/User_Profile" element={<User_profile />} />
+      <Route path="/dashboard" element={<dashboard />} />
+      <Route path="/User_header" element={<User_header />} />
+      <Route path="/Stars" element={<Stars />} />
+      <Route path="/Issue" element={<Issue />} />
+      <Route path="/ForgotPassword" element={<ForgotPassword />} />
+      <Route path="/Repository" element={<Repository />} />
+      <Route path="/admin" element={<AdminDashboard />} />
+       </Route>
+    </Routes>
+  );
+}
+
+export default App;
