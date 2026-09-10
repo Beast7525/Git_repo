@@ -13,6 +13,23 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+app.get("/", (req, res) => {
+  res.json({
+    message: "Gitrepo API is running",
+    status: "ok",
+    endpoints: [
+      "/api/auth",
+      "/api/admin",
+      "/api/repos",
+      "/api/issues"
+    ]
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "healthy" });
+});
+
 // Routes
 const authRoutes = require("./routes/auth");
 app.use("/api/auth", authRoutes);
