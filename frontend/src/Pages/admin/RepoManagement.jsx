@@ -82,17 +82,18 @@ export default function RepoManagement({ showToast }) {
 
   async function handleSaveRepoSubmit(e) {
     e.preventDefault();
+    const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
     const payload = { ...editingRepo, ...repoForm };
 
     try {
-      let res = await fetch("http://localhost:5000/api/admin/repos", {
+      let res = await fetch(`${API_BASE_URL}/api/admin/repos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
       if (res.status === 404) {
-        res = await fetch("http://localhost:5000/api/repos", {
+        res = await fetch(`${API_BASE_URL}/api/repos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -107,7 +108,7 @@ export default function RepoManagement({ showToast }) {
       }
     } catch (err) {
       console.error("Database Save Error:", err);
-      showToast(`Database error: Could not connect to backend server at http://localhost:5000`);
+      showToast(`Database error: Could not connect to backend server at ${API_BASE_URL}`);
     }
 
     setEditingRepo(null);

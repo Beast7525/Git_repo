@@ -3,6 +3,8 @@ import "./style/User.css";
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
+
 function User() {
   const navigate = useNavigate();
   const [repos, setRepos] = useState([]);
@@ -11,9 +13,9 @@ function User() {
   useEffect(() => {
     async function loadUserRepos() {
       try {
-        let res = await fetch("http://localhost:5000/api/admin/repos");
+        let res = await fetch(`${API_BASE_URL}/api/admin/repos`);
         if (res.status === 404 || !res.ok) {
-          res = await fetch("http://localhost:5000/api/repos");
+          res = await fetch(`${API_BASE_URL}/api/repos`);
         }
         if (res.ok) {
           const data = await res.json();

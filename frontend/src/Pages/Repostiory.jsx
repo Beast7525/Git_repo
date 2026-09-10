@@ -31,6 +31,7 @@ function Repository() {
         setMessage("");
         setIsError(false);
         const repoName = form.name.trim();
+        const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
         // Get currently logged in user info dynamically
         const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
@@ -52,14 +53,14 @@ function Repository() {
 
         try {
             // Post directly to backend database collection 'repositories'
-            let res = await fetch("http://localhost:5000/api/admin/repos", {
+            let res = await fetch(`${API_BASE_URL}/api/admin/repos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
 
             if (res.status === 404) {
-                res = await fetch("http://localhost:5000/api/repos", {
+                res = await fetch(`${API_BASE_URL}/api/repos`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
@@ -77,7 +78,7 @@ function Repository() {
         } catch (err) {
             console.error("Backend error when saving repo:", err);
             setIsError(true);
-            setMessage(`Database Error: Could not connect to backend server at http://localhost:5000 (${err.message}). Make sure the backend server is running.`);
+            setMessage(`Database Error: Could not connect to backend server at ${API_BASE_URL} (${err.message}). Make sure the backend server is running.`);
         } finally {
             setIsSubmitting(false);
         }

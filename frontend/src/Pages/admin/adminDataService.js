@@ -1,7 +1,7 @@
 // Data Service for Git Repository Management System Admin Panel
 // Connects directly to backend DB API endpoints with fallback for offline state
 
-const API_BASE_URL = "http://localhost:5000/api/admin";
+const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "")}/api/admin`;
 
 const STORAGE_KEYS = {
   USERS: "git_admin_users_v1",
