@@ -4,6 +4,7 @@ import User_profile  from "./User_Profile";
 import User from "./User";
 import Issue from "./Issue"
 import Home from "./Home"
+import All_Repository from "./All_Repository"
  
 function Dashboard({ closeSidebar }) {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ function Dashboard({ closeSidebar }) {
         <p onClick={() => { navigate('/User'); closeSidebar(); }}>Home</p>
         <p onClick={() => { navigate('/Issue'); closeSidebar(); }}>All Issues</p>
         <p>All Pull Requests</p>
-        <p>All Repositories</p>
+        <p onClick={() => { navigate('/All_Repository'); closeSidebar(); }}>All Repositories</p>
         <p>Team Member</p>
         <p onClick={() => { navigate('/User_Profile'); closeSidebar(); }}>Profile</p>
         <p onClick={() => { navigate('/'); closeSidebar(); }}>logout</p>

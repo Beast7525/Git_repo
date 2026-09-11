@@ -7,6 +7,7 @@ import dashboard from "./Pages/dashboard";
 import User_header from "./Pages/User_header";
 import Stars from "./Pages/Stars";
 import Issue from "./Pages/Issue";
+import All_Repository from "./Pages/All_Repository";
 import Layout from "./Pages/Layout";
 import ForgotPassword from "./Pages/ForgotPassword";
 import Repository from "./Pages/Repostiory";
@@ -27,6 +28,7 @@ function App() {
       <Route path="/ForgotPassword" element={<ForgotPassword />} />
       <Route path="/Repository" element={<Repository />} />
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/All_Repository" element={<All_Repository />} />
        </Route>
     </Routes>
   );
