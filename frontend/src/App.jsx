@@ -20,7 +20,7 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        {/* Fixed / Static Routes */}
+
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/User" element={<User />} />

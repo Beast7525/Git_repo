@@ -64,8 +64,8 @@ function Login() {
       localStorage.setItem("username", data.user.username);
       localStorage.setItem("userId", data.user.id);
 
-      // Go to User Dashboard
-      navigate("/User");
+      // Go to User Dashboard with dynamic username URL
+      navigate(`/${data.user.username}`);
 
     } catch (err) {
       setError("Network error: " + err.message);

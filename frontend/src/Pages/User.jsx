@@ -1,9 +1,22 @@
 import User_header from './User_header';
 import "./style/User.css";
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
+
+const RESERVED_KEYWORDS = [
+  "login",
+  "admin",
+  "dashboard",
+  "repository",
+  "stars",
+  "issue",
+  "forgotpassword",
+  "all_repository",
+  "user_profile",
+  "user"
+];
 
 function User() {
   const navigate = useNavigate();
@@ -11,11 +24,22 @@ function User() {
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Retrieve logged-in user details
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const loggedInUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
+  const activeUsername = paramUsername || loggedInUsername || "Developer";
+
+  // Redirect /User to /:username if logged in
+  useEffect(() => {
+    if (!paramUsername && loggedInUsername && !RESERVED_KEYWORDS.includes(loggedInUsername.toLowerCase())) {
+      navigate(`/${loggedInUsername}`, { replace: true });
+    }
+  }, [paramUsername, loggedInUsername, navigate]);
+
   useEffect(() => {
     async function loadUserRepos() {
       try {
-        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-        const activeUsername = paramUsername || localStorage.getItem("username") || currentUser.username || currentUser.name || "";
+        setLoading(true);
         const ownerEmail = currentUser.gmail || currentUser.email || "";
 
         let query = "";
@@ -23,11 +47,8 @@ function User() {
           query = `?owner=${encodeURIComponent(paramUsername)}`;
         } else if (ownerEmail) {
           query = `?ownerEmail=${encodeURIComponent(ownerEmail)}`;
-        } else if (activeUsername) {
-          query = `?owner=${encodeURIComponent(activeUsername)}`;
-        } else {
-          setRepos([]);
-          return;
+        } else if (loggedInUsername) {
+          query = `?owner=${encodeURIComponent(loggedInUsername)}`;
         }
 
         const res = await fetch(`${API_BASE_URL}/api/repos${query}`);
@@ -43,7 +64,7 @@ function User() {
     }
 
     loadUserRepos();
-  }, [paramUsername]);
+  }, [paramUsername, loggedInUsername]);
 
   return (
     <main className="app">
@@ -51,7 +72,7 @@ function User() {
       <div className="user-page">
         <section className="welcome-panel">
           <div>
-            <p className="eyebrow">YOUR WORKSPACE</p>
+            <p className="eyebrow">@{activeUsername.toUpperCase()}'S WORKSPACE</p>
             <h1>Build something<br /><em>worth sharing.</em></h1>
             <p className="welcome-copy">Keep your projects close, collaborate with your team, and turn good ideas into repositories.</p>
           </div>
@@ -92,7 +113,7 @@ function User() {
           <div className="panel-heading">
             <div>
               <p className="eyebrow">COLLECTION ({repos.length})</p>
-              <h2>Owned or shared repositories</h2>
+              <h2>@{activeUsername}'s Repositories</h2>
             </div>
             <button className="new-repository" type="button" onClick={() => navigate('/Repository')}>
               <span aria-hidden="true">+</span> New repository
@@ -105,34 +126,45 @@ function User() {
             </div>
           ) : repos.length > 0 ? (
             <div className="repo-grid-list">
-              {repos.map((repo) => (
-                <div key={repo._id || repo.id} className="repo-item-card">
-                  <div className="repo-card-top">
-                    <h3 className="repo-card-title">
-                      {repo.name}
-                    </h3>
-                    <span className={`repo-badge ${repo.visibility === 'public' || repo.visibility === 'Public' ? 'public' : 'private'}`}>
-                      {repo.visibility === 'public' || repo.visibility === 'Public' ? 'Public' : 'Private'}
-                    </span>
-                  </div>
+              {repos.map((repo) => {
+                const ownerName = repo.owner || activeUsername;
+                const repoPath = `/${ownerName}/${encodeURIComponent(repo.name || repo.repositoryName)}`;
+                return (
+                  <div
+                    key={repo._id || repo.id}
+                    className="repo-item-card"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => navigate(repoPath)}
+                  >
+                    <div className="repo-card-top">
+                      <h3 className="repo-card-title">
+                        <Link to={repoPath} style={{ color: "inherit", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
+                          {repo.name}
+                        </Link>
+                      </h3>
+                      <span className={`repo-badge ${repo.visibility === 'public' || repo.visibility === 'Public' ? 'public' : 'private'}`}>
+                        {repo.visibility === 'public' || repo.visibility === 'Public' ? 'Public' : 'Private'}
+                      </span>
+                    </div>
 
-                  <p className="repo-card-desc">
-                    {repo.description || "No description provided for this repository."}
-                  </p>
+                    <p className="repo-card-desc">
+                      {repo.description || "No description provided for this repository."}
+                    </p>
 
-                  <div className="repo-card-meta">
-                    <span className="repo-owner">👤 Owner: <strong>{repo.owner || "Developer"}</strong></span>
-                    {repo.ignoreGitignore ? (
-                      <span className="repo-gitignore-tag no-gitignore">🚫 No .gitignore</span>
-                    ) : (
-                      <span className="repo-gitignore-tag">📄 Standard .gitignore</span>
-                    )}
-                    <span className="repo-date">
-                      📅 {repo.creationDate || (repo.createdAt ? repo.createdAt.split('T')[0] : "Recently")}
-                    </span>
+                    <div className="repo-card-meta">
+                      <span className="repo-owner">👤 Owner: <strong>{ownerName}</strong></span>
+                      {repo.ignoreGitignore ? (
+                        <span className="repo-gitignore-tag no-gitignore">🚫 No .gitignore</span>
+                      ) : (
+                        <span className="repo-gitignore-tag">📄 Standard .gitignore</span>
+                      )}
+                      <span className="repo-date">
+                        📅 {repo.creationDate || (repo.createdAt ? repo.createdAt.split('T')[0] : "Recently")}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="empty-repository">

@@ -68,22 +68,38 @@ function All_Repository() {
           </div>
         ) : (
           <div className="repo-grid-list">
-            {repos.map((repo) => (
-              <article key={repo._id || repo.id} className="repo-item-card">
-                <div className="repo-card-top">
-                  <h3 className="repo-card-title">{repo.name}</h3>
-                  <span className={`repo-badge ${repo.visibility === "public" || repo.visibility === "Public" ? "public" : "private"}`}>
-                    {repo.visibility === "public" || repo.visibility === "Public" ? "Public" : "Private"}
-                  </span>
-                </div>
-                <p className="repo-card-desc">{repo.description || "No description provided for this repository."}</p>
-                <div className="repo-card-meta">
-                  <span className="repo-owner">Owner: <strong>{repo.owner || "Developer"}</strong></span>
-                  <span>Commits: {repo.commits || 1}</span>
-                  <span>{repo.creationDate || (repo.createdAt ? repo.createdAt.split("T")[0] : "Recently")}</span>
-                </div>
-              </article>
-            ))}
+            {repos.map((repo) => {
+              const ownerName = repo.owner || "Developer";
+              const repoPath = `/${ownerName}/${encodeURIComponent(repo.name || repo.repositoryName)}`;
+              const ownerPath = `/${ownerName}`;
+              return (
+                <article
+                  key={repo._id || repo.id}
+                  className="repo-item-card"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => navigate(repoPath)}
+                >
+                  <div className="repo-card-top">
+                    <h3 className="repo-card-title">
+                      <span style={{ color: "#818cf8", textDecoration: "underline" }}>
+                        {repo.name}
+                      </span>
+                    </h3>
+                    <span className={`repo-badge ${repo.visibility === "public" || repo.visibility === "Public" ? "public" : "private"}`}>
+                      {repo.visibility === "public" || repo.visibility === "Public" ? "Public" : "Private"}
+                    </span>
+                  </div>
+                  <p className="repo-card-desc">{repo.description || "No description provided for this repository."}</p>
+                  <div className="repo-card-meta">
+                    <span className="repo-owner" onClick={(e) => { e.stopPropagation(); navigate(ownerPath); }}>
+                      Owner: <strong style={{ textDecoration: "underline", color: "#818cf8" }}>{ownerName}</strong>
+                    </span>
+                    <span>Commits: {repo.commits || 1}</span>
+                    <span>{repo.creationDate || (repo.createdAt ? repo.createdAt.split("T")[0] : "Recently")}</span>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>

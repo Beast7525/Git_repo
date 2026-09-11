@@ -22,17 +22,17 @@ function User_header(){
           >
             ≣
           </button>
-          <span className="header-username">{username}</span>
+            <span className="header-username" style={{ cursor: "pointer" }} onClick={() => navigate(`/${username}`)}>{username}</span>
         </div>
         <div className="user_info">
           <div className="details">
-            <p onClick={() => navigate('/User')}>Home</p>
+            <p onClick={() => navigate(`/${username}`)}>Home</p>
             <p onClick={()=> navigate('/Stars')}>Stars</p>
             <p onClick={()=> navigate('/Issue')}>Issues</p>
             <p>Pull Requests</p>
             
           </div>
-        </div><img className="profile-img" src={profile} alt="Profile" onClick={() => navigate('/User_Profile')} />
+        </div><img className="profile-img" src={profile} alt="Profile" onClick={() => navigate(`/${username}`)} />
         {showSidebar && (
         <>
           <div
