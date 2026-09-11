@@ -12,7 +12,10 @@ html {
      min-height: 100vh; 
      overflow: hidden; 
      color: #f5f6ef; 
-     background: #0c1110; 
+  background:
+      radial-gradient(circle at 12% 8%, rgba(53, 128, 111, .28), transparent 34%),
+      radial-gradient(circle at 88% 78%, rgba(191, 145, 70, .14), transparent 30%),
+      linear-gradient(135deg, #081311 0%, #10231f 48%, #111713 100%);
      font-family: 'Poppins', sans-serif; 
     }
 .box_user { 
@@ -26,9 +29,11 @@ html {
     min-height: 88px;
     margin: 24px auto 0; 
     padding: 16px 26px; 
-    border: 1px solid rgba(196, 220, 198, .12); 
-    border-radius: 22px; background: rgba(20, 29, 26, .84); 
-    box-shadow: 0 18px 60px rgba(0, 0, 0, .24); 
+    border: 1px solid rgba(220, 245, 224, .2); 
+    border-radius: 22px; background: rgba(25, 48, 42, .42); 
+    box-shadow: 0 18px 60px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .08); 
+    backdrop-filter: blur(22px) saturate(135%);
+    -webkit-backdrop-filter: blur(22px) saturate(135%);
     }
 
 .user-brand {
@@ -99,6 +104,7 @@ html {
     width: min(1380px, calc(100% - 48px)); 
     margin: 18px auto 0; 
     padding-bottom: 48px; 
+    isolation: isolate;
 }
 .user-page::before { 
     position: fixed; 
@@ -108,13 +114,16 @@ html {
     height: 100vh; 
     content: ''; 
     pointer-events: none; 
-    background: radial-gradient(circle at 80% 15%, rgba(52, 143, 96, .2), transparent 52%); 
+    background: radial-gradient(circle at 80% 15%, rgba(52, 143, 96, .24), transparent 52%); 
+    z-index: -1;
 }
 .welcome-panel, .workspace-sidebar, .repository-panel { 
     position: relative; 
-    border: 1px solid rgba(205, 231, 203, .13); 
-    background: rgba(18, 27, 24, .78); 
-    box-shadow: 0 20px 70px rgba(0, 0, 0, .2); 
+    border: 1px solid rgba(220, 245, 224, .2); 
+    background: rgba(25, 43, 37, .48); 
+    box-shadow: 0 20px 70px rgba(0, 0, 0, .2), inset 0 1px 0 rgba(255, 255, 255, .07); 
+    backdrop-filter: blur(24px) saturate(125%);
+    -webkit-backdrop-filter: blur(24px) saturate(125%);
 }
 .welcome-panel { 
     display: flex; 
@@ -125,7 +134,7 @@ html {
     overflow: hidden; 
     padding: 44px 56px; 
     border-radius: 26px; 
-    background: linear-gradient(112deg, #162c24 0%, #13211d 50%, #101615 100%); 
+    background: linear-gradient(112deg, rgba(39, 91, 74, .48) 0%, rgba(22, 47, 40, .38) 50%, rgba(15, 27, 24, .42) 100%); 
 }
 .eyebrow { 
     margin: 0 0 10px; 
@@ -384,8 +393,11 @@ h2 {
 .repo-item-card {
   padding: 18px 22px;
   border-radius: 14px;
-  background: rgba(12, 17, 16, 0.6);
-  border: 1px solid rgba(205, 231, 203, 0.12);
+  background: rgba(8, 20, 17, 0.34);
+  border: 1px solid rgba(220, 245, 224, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 

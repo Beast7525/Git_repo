@@ -13,10 +13,14 @@ function User() {
   useEffect(() => {
     async function loadUserRepos() {
       try {
-        let res = await fetch(`${API_BASE_URL}/api/admin/repos`);
-        if (res.status === 404 || !res.ok) {
-          res = await fetch(`${API_BASE_URL}/api/repos`);
+        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const ownerEmail = currentUser.gmail || currentUser.email || "";
+        if (!ownerEmail) {
+          setRepos([]);
+          return;
         }
+        const query = `?ownerEmail=${encodeURIComponent(ownerEmail)}`;
+        const res = await fetch(`${API_BASE_URL}/api/repos${query}`);
         if (res.ok) {
           const data = await res.json();
           setRepos(data);
@@ -95,7 +99,7 @@ function User() {
                 <div key={repo._id || repo.id} className="repo-item-card">
                   <div className="repo-card-top">
                     <h3 className="repo-card-title">
-                      <span className="repo-icon">📦</span> {repo.name}
+                      {repo.name}
                     </h3>
                     <span className={`repo-badge ${repo.visibility === 'public' || repo.visibility === 'Public' ? 'public' : 'private'}`}>
                       {repo.visibility === 'public' || repo.visibility === 'Public' ? 'Public' : 'Private'}

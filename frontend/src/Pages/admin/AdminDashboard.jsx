@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "./AdminLayout";
 import AdminDashboardView from "./AdminDashboardView";
+import UserManagementView from "./UserManagement";
 
 import {
   fetchAdminStats,
@@ -113,7 +114,9 @@ export default function AdminDashboard() {
           {activeTab === "dashboard" && (
             <AdminDashboardView stats={stats} onNavigateTab={(tab) => setActiveTab(tab)} />
           )}
-         
+          {activeTab === "users" && (
+            <UserManagementView stats={stats} onNavigateTab={(tab) => setActiveTab(tab)} />
+          )}
         </>
       )}
     </AdminLayout>

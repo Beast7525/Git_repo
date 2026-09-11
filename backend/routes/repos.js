@@ -6,7 +6,9 @@ const router = express.Router();
 // GET /api/repos
 router.get("/", async (req, res) => {
   try {
-    const repos = await Repo.find().sort({ createdAt: -1 });
+    const ownerEmail = typeof req.query.ownerEmail === "string" ? req.query.ownerEmail.trim().toLowerCase() : "";
+    const filter = ownerEmail ? { ownerEmail } : {};
+    const repos = await Repo.find(filter).sort({ createdAt: -1 });
     res.status(200).json(repos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching repositories: " + error.message });
