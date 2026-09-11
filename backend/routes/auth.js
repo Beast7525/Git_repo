@@ -5,6 +5,8 @@ const nodemailer = require("nodemailer");
 const router = express.Router();
 
 const hashValue = (value) => crypto.createHash("sha256").update(value).digest("hex");
+const DAILY_RESET_LIMIT = 3;
+const MONTHLY_RESET_LIMIT = 20;
 const mailUser = process.env.MAIL_USER;
 const mailPassword = process.env.MAIL_PASSWORD || process.env.MAIL_PASS;
 
@@ -23,6 +25,15 @@ const sendOtpEmail = async (gmail, otp) => {
     subject: "Your Gitrepo password reset OTP",
     text: `Your Gitrepo password reset OTP is ${otp}. It expires in 10 minutes.`,
   });
+};
+
+const getUtcWindow = (date, monthly = false) => {
+  const window = new Date(date);
+  if (monthly) {
+    window.setUTCDate(1);
+  }
+  window.setUTCHours(0, 0, 0, 0);
+  return window;
 };
 
 // Signup Route
@@ -223,9 +234,33 @@ router.post("/reset-password", async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired reset session" });
     }
 
+    const now = new Date();
+    const currentDailyWindow = getUtcWindow(now);
+    const currentMonthlyWindow = getUtcWindow(now, true);
+    const dailyWindow = user.passwordResetDailyWindow || currentDailyWindow;
+    const monthlyWindow = user.passwordResetMonthlyWindow || currentMonthlyWindow;
+    const dailyCount = getUtcWindow(dailyWindow).getTime() === currentDailyWindow.getTime()
+      ? user.passwordResetDailyCount || 0
+      : 0;
+    const monthlyCount = getUtcWindow(monthlyWindow, true).getTime() === currentMonthlyWindow.getTime()
+      ? user.passwordResetMonthlyCount || 0
+      : 0;
+
+    if (dailyCount >= DAILY_RESET_LIMIT) {
+      return res.status(429).json({ message: "Password reset limit reached. You can reset your password at most 3 times per day." });
+    }
+
+    if (monthlyCount >= MONTHLY_RESET_LIMIT) {
+      return res.status(429).json({ message: "Password reset limit reached. You can reset your password at most 20 times per month." });
+    }
+
     user.password = password;
     user.resetTokenHash = undefined;
     user.resetTokenExpires = undefined;
+    user.passwordResetDailyCount = dailyCount + 1;
+    user.passwordResetDailyWindow = currentDailyWindow;
+    user.passwordResetMonthlyCount = monthlyCount + 1;
+    user.passwordResetMonthlyWindow = currentMonthlyWindow;
     await user.save();
 
     res.json({ message: "Password reset successfully" });
@@ -280,6 +315,32 @@ router.post("/google", async (req, res) => {
     });
   } catch (error) {
     console.error("Google login error:", error);
+    res.status(500).json({ message: "Server error: " + error.message });
+  }
+});
+
+// GET /api/auth/user/:username - Get user profile details by username
+router.get("/user/:username", async (req, res) => {
+  try {
+    const usernameParam = req.params.username.trim();
+    const user = await User.findOne({
+      username: new RegExp(`^${usernameParam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+    }).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      user: {
+        id: user._id,
+        username: user.username,
+        gmail: user.gmail,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
     res.status(500).json({ message: "Server error: " + error.message });
   }
 });

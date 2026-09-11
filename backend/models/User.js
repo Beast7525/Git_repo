@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema(
     resetOtpExpires: Date,
     resetTokenHash: String,
     resetTokenExpires: Date,
+    passwordResetDailyCount: { type: Number, default: 0 },
+    passwordResetDailyWindow: { type: Date, default: Date.now },
+    passwordResetMonthlyCount: { type: Number, default: 0 },
+    passwordResetMonthlyWindow: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );

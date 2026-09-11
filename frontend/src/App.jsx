@@ -12,17 +12,19 @@ import Layout from "./Pages/Layout";
 import ForgotPassword from "./Pages/ForgotPassword";
 import Repository from "./Pages/Repostiory";
 import AdminDashboard from "./Pages/admin/AdminDashboard";
+import Profile from "./Pages/Profile";
+import RepoDetail from "./Pages/RepoDetail";
+import NotFound from "./Pages/NotFound";
 
 function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
+        {/* Fixed / Static Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/User" element={<User />} />
-        <Route path="/User/:username" element={<User />} />
         <Route path="/User_Profile" element={<User_profile />} />
-        <Route path="/User_Profile/:username" element={<User_profile />} />
         <Route path="/dashboard" element={<dashboard />} />
         <Route path="/User_header" element={<User_header />} />
         <Route path="/Stars" element={<Stars />} />
@@ -31,7 +33,13 @@ function App() {
         <Route path="/Repository" element={<Repository />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/All_Repository" element={<All_Repository />} />
-        <Route path="/All_Repository/:username" element={<All_Repository />} />
+
+        {/* Dynamic Username and Repository Routes */}
+        <Route path="/:username" element={<Profile />} />
+        <Route path="/:username/:repoName" element={<RepoDetail />} />
+
+        {/* 404 Not Found Fallback */}
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );

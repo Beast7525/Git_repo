@@ -72,4 +72,34 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET /api/repos/find/:owner/:repoName - Get repository details by owner username & repository name
+router.get("/find/:owner/:repoName", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const ownerRegex = new RegExp(`^${owner.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    const repoRegex = new RegExp(`^${repoName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+
+    const repo = await Repo.findOne({
+      $and: [
+        { owner: ownerRegex },
+        {
+          $or: [
+            { name: repoRegex },
+            { repositoryName: repoRegex }
+          ]
+        }
+      ]
+    });
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found" });
+    }
+
+    res.status(200).json(repo);
+  } catch (error) {
+    console.error("Error finding repository:", error);
+    res.status(500).json({ message: "Error fetching repository: " + error.message });
+  }
+});
+
 module.exports = router;
