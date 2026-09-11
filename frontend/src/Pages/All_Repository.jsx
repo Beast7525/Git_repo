@@ -13,11 +13,24 @@ function All_Repository() {
   useEffect(() => {
     async function loadRepositories() {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/repos`);
+        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const ownerEmail = currentUser.gmail || currentUser.email || "";
+        const storedUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
+
+        if (!ownerEmail && !storedUsername) {
+          setRepos([]);
+          return;
+        }
+
+        const params = new URLSearchParams();
+        if (ownerEmail) params.append("ownerEmail", ownerEmail);
+        if (storedUsername) params.append("owner", storedUsername);
+
+        const response = await fetch(`${API_BASE_URL}/api/repos?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load repositories");
         setRepos(await response.json());
       } catch (error) {
-        console.error("Error loading all repositories:", error);
+        console.error("Error loading repositories:", error);
       } finally {
         setLoading(false);
       }
@@ -32,9 +45,9 @@ function All_Repository() {
       <section className="repository-panel all-repository-panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">COMMUNITY COLLECTION ({repos.length})</p>
+            <p className="eyebrow">YOUR REPOSITORIES ({repos.length})</p>
             <h1>All repositories</h1>
-            <p className="welcome-copy">Explore repositories shared by everyone on the platform.</p>
+            <p className="welcome-copy">Showing all repositories owned by your logged-in account.</p>
           </div>
           <button className="new-repository" type="button" onClick={() => navigate("/Repository")}>
             <span aria-hidden="true">+</span> New repository
@@ -46,7 +59,7 @@ function All_Repository() {
         ) : repos.length === 0 ? (
           <div className="empty-repository">
             <h3>No repositories found</h3>
-            <p>Be the first to create a repository and share your work.</p>
+            <p>You haven't created any repositories yet. Click 'New repository' to create one.</p>
           </div>
         ) : (
           <div className="repo-grid-list">

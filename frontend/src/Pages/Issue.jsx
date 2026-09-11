@@ -1,4 +1,4 @@
-import "./style/user.css";
+import "./style/Issue.css";
 import User_header from "./User_header";
 function Issue(){
     return(

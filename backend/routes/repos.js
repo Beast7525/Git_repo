@@ -6,10 +6,23 @@ const router = express.Router();
 // GET /api/repos
 router.get("/", async (req, res) => {
   try {
-    const ownerEmail = typeof req.query.ownerEmail === "string" ? req.query.ownerEmail.trim().toLowerCase() : "";
-    const filter = ownerEmail
-      ? { ownerEmail }
-      : { visibility: { $in: ["public", "Public"] } };
+    const ownerEmail = typeof req.query.ownerEmail === "string" ? req.query.ownerEmail.trim() : "";
+    const owner = typeof req.query.owner === "string" ? req.query.owner.trim() : "";
+
+    let filter = {};
+    if (ownerEmail || owner) {
+      const conditions = [];
+      if (ownerEmail) {
+        conditions.push({ ownerEmail: new RegExp(`^${ownerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
+      }
+      if (owner) {
+        conditions.push({ owner: new RegExp(`^${owner.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
+      }
+      filter = { $or: conditions };
+    } else {
+      filter = { visibility: { $in: ["public", "Public"] } };
+    }
+
     const repos = await Repo.find(filter).sort({ createdAt: -1 });
     res.status(200).json(repos);
   } catch (error) {
