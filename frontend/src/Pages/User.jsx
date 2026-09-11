@@ -1,12 +1,13 @@
 import User_header from './User_header';
 import "./style/User.css";
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
 function User() {
   const navigate = useNavigate();
+  const { username: paramUsername } = useParams();
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -14,12 +15,21 @@ function User() {
     async function loadUserRepos() {
       try {
         const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const activeUsername = paramUsername || localStorage.getItem("username") || currentUser.username || currentUser.name || "";
         const ownerEmail = currentUser.gmail || currentUser.email || "";
-        if (!ownerEmail) {
+
+        let query = "";
+        if (paramUsername) {
+          query = `?owner=${encodeURIComponent(paramUsername)}`;
+        } else if (ownerEmail) {
+          query = `?ownerEmail=${encodeURIComponent(ownerEmail)}`;
+        } else if (activeUsername) {
+          query = `?owner=${encodeURIComponent(activeUsername)}`;
+        } else {
           setRepos([]);
           return;
         }
-        const query = `?ownerEmail=${encodeURIComponent(ownerEmail)}`;
+
         const res = await fetch(`${API_BASE_URL}/api/repos${query}`);
         if (res.ok) {
           const data = await res.json();
@@ -33,7 +43,7 @@ function User() {
     }
 
     loadUserRepos();
-  }, []);
+  }, [paramUsername]);
 
   return (
     <main className="app">

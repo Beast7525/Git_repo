@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/User.css";
 
@@ -7,6 +7,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").r
 
 function All_Repository() {
   const navigate = useNavigate();
+  const { username: paramUsername } = useParams();
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -14,17 +15,21 @@ function All_Repository() {
     async function loadRepositories() {
       try {
         const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const activeUsername = paramUsername || localStorage.getItem("username") || currentUser.username || currentUser.name || "";
         const ownerEmail = currentUser.gmail || currentUser.email || "";
-        const storedUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
 
-        if (!ownerEmail && !storedUsername) {
+        const params = new URLSearchParams();
+        if (paramUsername) {
+          params.append("owner", paramUsername);
+        } else {
+          if (ownerEmail) params.append("ownerEmail", ownerEmail);
+          if (activeUsername) params.append("owner", activeUsername);
+        }
+
+        if (!params.toString()) {
           setRepos([]);
           return;
         }
-
-        const params = new URLSearchParams();
-        if (ownerEmail) params.append("ownerEmail", ownerEmail);
-        if (storedUsername) params.append("owner", storedUsername);
 
         const response = await fetch(`${API_BASE_URL}/api/repos?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load repositories");
@@ -37,7 +42,7 @@ function All_Repository() {
     }
 
     loadRepositories();
-  }, []);
+  }, [paramUsername]);
 
   return (
     <main className="app all-repository-page">

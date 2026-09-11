@@ -17,19 +17,22 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-      <Route path="/" element={<Home />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/User" element={<User />} />
-      <Route path="/User_Profile" element={<User_profile />} />
-      <Route path="/dashboard" element={<dashboard />} />
-      <Route path="/User_header" element={<User_header />} />
-      <Route path="/Stars" element={<Stars />} />
-      <Route path="/Issue" element={<Issue />} />
-      <Route path="/ForgotPassword" element={<ForgotPassword />} />
-      <Route path="/Repository" element={<Repository />} />
-      <Route path="/admin" element={<AdminDashboard />} />
-      <Route path="/All_Repository" element={<All_Repository />} />
-       </Route>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/User" element={<User />} />
+        <Route path="/User/:username" element={<User />} />
+        <Route path="/User_Profile" element={<User_profile />} />
+        <Route path="/User_Profile/:username" element={<User_profile />} />
+        <Route path="/dashboard" element={<dashboard />} />
+        <Route path="/User_header" element={<User_header />} />
+        <Route path="/Stars" element={<Stars />} />
+        <Route path="/Issue" element={<Issue />} />
+        <Route path="/ForgotPassword" element={<ForgotPassword />} />
+        <Route path="/Repository" element={<Repository />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/All_Repository" element={<All_Repository />} />
+        <Route path="/All_Repository/:username" element={<All_Repository />} />
+      </Route>
     </Routes>
   );
 }
