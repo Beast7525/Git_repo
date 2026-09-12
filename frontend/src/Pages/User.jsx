@@ -27,14 +27,15 @@ function User() {
   // Retrieve logged-in user details
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const loggedInUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
-  const activeUsername = paramUsername || loggedInUsername || "Developer";
+  const activeUsername = paramUsername ? paramUsername.replace(/-/g, " ") : (loggedInUsername || "Developer");
+  const slugifiedUser = (loggedInUsername || "").trim().replace(/\s+/g, "-").toLowerCase();
 
   // Redirect /User to /:username if logged in
   useEffect(() => {
-    if (!paramUsername && loggedInUsername && !RESERVED_KEYWORDS.includes(loggedInUsername.toLowerCase())) {
-      navigate(`/${loggedInUsername}`, { replace: true });
+    if (!paramUsername && slugifiedUser && !RESERVED_KEYWORDS.includes(slugifiedUser)) {
+      navigate(`/${slugifiedUser}`, { replace: true });
     }
-  }, [paramUsername, loggedInUsername, navigate]);
+  }, [paramUsername, slugifiedUser, navigate]);
 
   useEffect(() => {
     async function loadUserRepos() {

@@ -16,7 +16,8 @@ router.get("/", async (req, res) => {
         conditions.push({ ownerEmail: new RegExp(`^${ownerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
       }
       if (owner) {
-        conditions.push({ owner: new RegExp(`^${owner.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
+        const flexibleOwner = owner.replace(/[-_]/g, "[\\s-_]?");
+        conditions.push({ owner: new RegExp(`^${flexibleOwner}$`, "i") });
       }
       filter = { $or: conditions };
     } else {
@@ -76,7 +77,8 @@ router.post("/", async (req, res) => {
 router.get("/find/:owner/:repoName", async (req, res) => {
   try {
     const { owner, repoName } = req.params;
-    const ownerRegex = new RegExp(`^${owner.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    const flexibleOwner = owner.trim().replace(/[-_]/g, "[\\s-_]?");
+    const ownerRegex = new RegExp(`^${flexibleOwner}$`, "i");
     const repoRegex = new RegExp(`^${repoName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
 
     const repo = await Repo.findOne({

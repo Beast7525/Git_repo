@@ -322,9 +322,9 @@ router.post("/google", async (req, res) => {
 // GET /api/auth/user/:username - Get user profile details by username
 router.get("/user/:username", async (req, res) => {
   try {
-    const usernameParam = req.params.username.trim();
+    const usernameParam = req.params.username.trim().replace(/[-_]/g, "[\\s-_]?");
     const user = await User.findOne({
-      username: new RegExp(`^${usernameParam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+      username: new RegExp(`^${usernameParam}$`, "i"),
     }).select("-password");
 
     if (!user) {
