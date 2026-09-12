@@ -1,8 +1,23 @@
 const express = require("express");
 const Repo = require("../models/Repo");
+const User = require("../models/User");
 const { initializeRepository } = require("../gitRepositoryService");
 
 const router = express.Router();
+
+function escapeRegex(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function flexibleIdentityRegex(value) {
+  const parts = String(value || "")
+    .trim()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map(escapeRegex);
+
+  return parts.length ? new RegExp(`^${parts.join("[\\s_-]+")}$`, "i") : null;
+}
 
 // GET /api/repos
 router.get("/", async (req, res) => {
@@ -14,32 +29,26 @@ router.get("/", async (req, res) => {
     if (ownerEmail || owner) {
       const conditions = [];
       if (ownerEmail) {
-        const escapedEmail = ownerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const escapedEmail = escapeRegex(ownerEmail);
         conditions.push({ ownerEmail: new RegExp(`^${escapedEmail}$`, "i") });
         conditions.push({ owner: new RegExp(`^${escapedEmail}$`, "i") });
       }
       if (owner) {
-        const flexibleOwner = owner.replace(/[-_]/g, "[\\s-_]?");
-        conditions.push({ owner: new RegExp(`^${flexibleOwner}$`, "i") });
-        conditions.push({ ownerEmail: new RegExp(`^${flexibleOwner}$`, "i") });
-        // Match partial owner names
-        const parts = owner.split(/[-_\s]+/);
-        parts.forEach(part => {
-          if (part.length > 2) {
-            conditions.push({ owner: new RegExp(part, "i") });
-          }
-        });
+        const ownerRegex = flexibleIdentityRegex(owner);
+        if (ownerRegex) {
+          conditions.push({ owner: ownerRegex });
+        }
+
+        const matchingUser = await User.findOne({ username: ownerRegex }).select("gmail username");
+        if (matchingUser?.gmail) {
+          const escapedMatchedEmail = escapeRegex(matchingUser.gmail);
+          conditions.push({ ownerEmail: new RegExp(`^${escapedMatchedEmail}$`, "i") });
+        }
       }
       filter = { $or: conditions };
     }
 
-    let repos = await Repo.find(filter).sort({ createdAt: -1 });
-
-    // Fallback: If specific user filter returns 0 repos, fetch all repos so list is never empty
-    if (repos.length === 0) {
-      repos = await Repo.find({}).sort({ createdAt: -1 });
-    }
-
+    const repos = await Repo.find(filter).sort({ createdAt: -1 });
     res.status(200).json(repos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching repositories: " + error.message });
@@ -137,13 +146,17 @@ router.post("/:id/upload", async (req, res) => {
 router.get("/find/:owner/:repoName", async (req, res) => {
   try {
     const { owner, repoName } = req.params;
-    const flexibleOwner = owner.trim().replace(/[-_]/g, "[\\s-_]?");
-    const ownerRegex = new RegExp(`^${flexibleOwner}$`, "i");
-    const repoRegex = new RegExp(`^${repoName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
 
     const repo = await Repo.findOne({
       $and: [
-        { owner: ownerRegex },
+        { $or: ownerConditions },
         {
           $or: [
             { name: repoRegex },

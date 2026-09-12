@@ -66,15 +66,28 @@ function Profile() {
         }
 
         // Fetch user's repositories
-        const repoRes = await fetch(`${API_BASE_URL}/api/repos?owner=${encodeURIComponent(username)}`);
+        const repoParams = new URLSearchParams({ owner: username });
+        const profileEmail = fetchedUser?.gmail || localUser.gmail || localUser.email || "";
+        const storedIdentityMatchesProfile =
+          normalizeStr(storedName) === normalizeStr(username) ||
+          normalizeStr(localUser.username) === normalizeStr(username) ||
+          normalizeStr(localUser.name) === normalizeStr(username);
+
+        if (fetchedUser?.gmail || storedIdentityMatchesProfile) {
+          if (profileEmail) {
+            repoParams.append("ownerEmail", profileEmail);
+          }
+        }
+
+        const repoRes = await fetch(`${API_BASE_URL}/api/repos?${repoParams.toString()}`);
         let fetchedRepos = [];
         if (repoRes.ok) {
           fetchedRepos = await repoRes.json();
         }
 
-        // If user profile is not found in DB, search by email too
-        if (!fetchedUser && localUser.gmail) {
-          const repoEmailRes = await fetch(`${API_BASE_URL}/api/repos?ownerEmail=${encodeURIComponent(localUser.gmail)}`);
+        // Fallback to the signed-in user's email when the URL slug differs from the stored display name.
+        if (fetchedRepos.length === 0 && profileEmail) {
+          const repoEmailRes = await fetch(`${API_BASE_URL}/api/repos?ownerEmail=${encodeURIComponent(profileEmail)}`);
           if (repoEmailRes.ok) {
             const emailRepos = await repoEmailRes.json();
             if (emailRepos.length > 0) {
