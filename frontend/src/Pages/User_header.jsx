@@ -32,7 +32,7 @@ function User_header(){
             <p>Pull Requests</p>
             
           </div>
-        </div><img className="profile-img" src={profile} alt="Profile" onClick={() => navigate(`/${username}`)} />
+        </div><img className="profile-img" src={profile} alt="Profile" onClick={() => navigate('/User_Profile')} />
         {showSidebar && (
         <>
           <div

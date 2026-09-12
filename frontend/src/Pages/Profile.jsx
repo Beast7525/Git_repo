@@ -104,31 +104,7 @@ function Profile() {
       <div className="user-page" style={{ paddingTop: "20px" }}>
         {/* Profile Sidebar */}
         <aside className="workspace-sidebar" style={{ alignSelf: "flex-start" }}>
-          <div style={{ textAlign: "center", marginBottom: "20px" }}>
-            <img
-              src={profileImg}
-              alt={username}
-              style={{
-                width: "120px",
-                height: "120px",
-                borderRadius: "50%",
-                border: "3px solid #6366f1",
-                objectFit: "cover",
-                marginBottom: "12px"
-              }}
-            />
-            <h2 style={{ fontSize: "1.5rem", color: "#fff", margin: "4px 0" }}>
-              {userInfo?.username || username}
-            </h2>
-            <p style={{ color: "rgba(255, 255, 255, 0.6)", fontSize: "0.9rem" }}>
-              @{username}
-            </p>
-            {userInfo?.gmail && (
-              <p style={{ color: "#818cf8", fontSize: "0.85rem", marginTop: "4px" }}>
-                ✉️ {userInfo.gmail}
-              </p>
-            )}
-          </div>
+
 
           <div className="activity-stat">
             <strong>{repos.length}</strong>

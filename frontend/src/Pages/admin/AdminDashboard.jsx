@@ -3,6 +3,11 @@ import { useNavigate } from "react-router-dom";
 import AdminLayout from "./AdminLayout";
 import AdminDashboardView from "./AdminDashboardView";
 import UserManagementView from "./UserManagement";
+import RepoManagementView from "./RepoManagement";
+import IssueManagementView from "./IssueManagement";
+import PullRequestManagementView from "./PullRequestManagement";
+import ReportsMonitoringView from "./ReportsMonitoring";
+import AdminSettingsView from "./AdminSettings";
 
 import {
   fetchAdminStats,
@@ -116,6 +121,21 @@ export default function AdminDashboard() {
           )}
           {activeTab === "users" && (
             <UserManagementView stats={stats} onNavigateTab={(tab) => setActiveTab(tab)} />
+          )}
+          {activeTab === "repos" && (
+            <RepoManagementView showToast={showToast} />
+          )}
+          {activeTab === "issues" && (
+            <IssueManagementView showToast={showToast} />
+          )}
+          {activeTab === "pull-requests" && (
+            <PullRequestManagementView showToast={showToast} />
+          )}
+          {activeTab === "reports" && (
+            <ReportsMonitoringView showToast={showToast} />
+          )}
+          {activeTab === "settings" && (
+            <AdminSettingsView showToast={showToast} />
           )}
         </>
       )}

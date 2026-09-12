@@ -72,7 +72,7 @@ function User() {
       <div className="user-page">
         <section className="welcome-panel">
           <div>
-            <p className="eyebrow">@{activeUsername.toUpperCase()}'S WORKSPACE</p>
+            <p className="eyebrow">YOUR WORKSPACE</p>
             <h1>Build something<br /><em>worth sharing.</em></h1>
             <p className="welcome-copy">Keep your projects close, collaborate with your team, and turn good ideas into repositories.</p>
           </div>
@@ -113,7 +113,7 @@ function User() {
           <div className="panel-heading">
             <div>
               <p className="eyebrow">COLLECTION ({repos.length})</p>
-              <h2>@{activeUsername}'s Repositories</h2>
+              <h2>Owned or shared repositories</h2>
             </div>
             <button className="new-repository" type="button" onClick={() => navigate('/Repository')}>
               <span aria-hidden="true">+</span> New repository
