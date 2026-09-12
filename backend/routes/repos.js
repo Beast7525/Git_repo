@@ -14,11 +14,14 @@ router.get("/", async (req, res) => {
     if (ownerEmail || owner) {
       const conditions = [];
       if (ownerEmail) {
-        conditions.push({ ownerEmail: new RegExp(`^${ownerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
+        const escapedEmail = ownerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        conditions.push({ ownerEmail: new RegExp(`^${escapedEmail}$`, "i") });
+        conditions.push({ owner: new RegExp(`^${escapedEmail}$`, "i") });
       }
       if (owner) {
         const flexibleOwner = owner.replace(/[-_]/g, "[\\s-_]?");
         conditions.push({ owner: new RegExp(`^${flexibleOwner}$`, "i") });
+        conditions.push({ ownerEmail: new RegExp(`^${flexibleOwner}$`, "i") });
       }
       filter = { $or: conditions };
     } else {

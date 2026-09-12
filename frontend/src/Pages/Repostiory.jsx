@@ -53,19 +53,11 @@ function Repository() {
 
         try {
             // Post directly to backend database collection 'repositories'
-            let res = await fetch(`${API_BASE_URL}/api/admin/repos`, {
+            let res = await fetch(`${API_BASE_URL}/api/repos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
-
-            if (res.status === 404) {
-                res = await fetch(`${API_BASE_URL}/api/repos`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-            }
 
             if (res.ok) {
                 // Navigate immediately to the User repositories page

@@ -43,15 +43,15 @@ function User() {
         setLoading(true);
         const ownerEmail = currentUser.gmail || currentUser.email || "";
 
-        let query = "";
+        const params = new URLSearchParams();
+        if (ownerEmail) params.append("ownerEmail", ownerEmail);
         if (paramUsername) {
-          query = `?owner=${encodeURIComponent(paramUsername)}`;
-        } else if (ownerEmail) {
-          query = `?ownerEmail=${encodeURIComponent(ownerEmail)}`;
+          params.append("owner", paramUsername);
         } else if (loggedInUsername) {
-          query = `?owner=${encodeURIComponent(loggedInUsername)}`;
+          params.append("owner", loggedInUsername);
         }
 
+        const query = params.toString() ? `?${params.toString()}` : "";
         const res = await fetch(`${API_BASE_URL}/api/repos${query}`);
         if (res.ok) {
           const data = await res.json();
