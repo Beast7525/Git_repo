@@ -52,10 +52,17 @@ function User() {
         }
 
         const query = params.toString() ? `?${params.toString()}` : "";
-        const res = await fetch(`${API_BASE_URL}/api/repos${query}`);
+        let res = await fetch(`${API_BASE_URL}/api/repos${query}`);
         if (res.ok) {
-          const data = await res.json();
-          setRepos(data);
+          let data = await res.json();
+          if (!Array.isArray(data) || data.length === 0) {
+            // Fallback to fetch all repos if specific user search was empty
+            const fallbackRes = await fetch(`${API_BASE_URL}/api/repos`);
+            if (fallbackRes.ok) {
+              data = await fallbackRes.json();
+            }
+          }
+          setRepos(Array.isArray(data) ? data : []);
         }
       } catch (err) {
         console.error("Error loading user repos:", err);

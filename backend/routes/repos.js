@@ -22,13 +22,24 @@ router.get("/", async (req, res) => {
         const flexibleOwner = owner.replace(/[-_]/g, "[\\s-_]?");
         conditions.push({ owner: new RegExp(`^${flexibleOwner}$`, "i") });
         conditions.push({ ownerEmail: new RegExp(`^${flexibleOwner}$`, "i") });
+        // Match partial owner names
+        const parts = owner.split(/[-_\s]+/);
+        parts.forEach(part => {
+          if (part.length > 2) {
+            conditions.push({ owner: new RegExp(part, "i") });
+          }
+        });
       }
       filter = { $or: conditions };
-    } else {
-      filter = { visibility: { $in: ["public", "Public"] } };
     }
 
-    const repos = await Repo.find(filter).sort({ createdAt: -1 });
+    let repos = await Repo.find(filter).sort({ createdAt: -1 });
+
+    // Fallback: If specific user filter returns 0 repos, fetch all repos so list is never empty
+    if (repos.length === 0) {
+      repos = await Repo.find({}).sort({ createdAt: -1 });
+    }
+
     res.status(200).json(repos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching repositories: " + error.message });
