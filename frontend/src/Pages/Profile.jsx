@@ -55,10 +55,11 @@ function Profile() {
         // Fallback to localStorage if logged-in user matches username
         const localUser = JSON.parse(localStorage.getItem("user") || "{}");
         const storedName = localStorage.getItem("username") || localUser.username || "";
+        const normalizeStr = (str) => (str || "").toLowerCase().replace(/[\s-_]+/g, "");
 
-        if (!fetchedUser && storedName.toLowerCase() === username.toLowerCase()) {
+        if (!fetchedUser && (normalizeStr(storedName) === normalizeStr(username) || normalizeStr(localUser.gmail) === normalizeStr(username))) {
           fetchedUser = {
-            username: storedName,
+            username: storedName || username,
             gmail: localUser.gmail || localUser.email || "",
             createdAt: localUser.createdAt || new Date().toISOString()
           };
@@ -71,13 +72,21 @@ function Profile() {
           fetchedRepos = await repoRes.json();
         }
 
-        // If no user found in DB, local storage, and no repos exist, mark 404
-        if (!fetchedUser && fetchedRepos.length === 0) {
-          setNotFound(true);
-        } else {
-          setUserInfo(fetchedUser || { username, gmail: "" });
-          setRepos(fetchedRepos);
+        // If user profile is not found in DB, search by email too
+        if (!fetchedUser && localUser.gmail) {
+          const repoEmailRes = await fetch(`${API_BASE_URL}/api/repos?ownerEmail=${encodeURIComponent(localUser.gmail)}`);
+          if (repoEmailRes.ok) {
+            const emailRepos = await repoEmailRes.json();
+            if (emailRepos.length > 0) {
+              fetchedRepos = emailRepos;
+            }
+          }
         }
+
+        // Display profile if user exists, repos exist, or if matching username format
+        const cleanName = (fetchedUser?.username || username).replace(/[-_]/g, " ");
+        setUserInfo(fetchedUser || { username: cleanName, gmail: localUser.gmail || "" });
+        setRepos(fetchedRepos);
       } catch (error) {
         console.error("Error loading profile:", error);
         setNotFound(true);
