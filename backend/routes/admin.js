@@ -77,7 +77,8 @@ router.get("/repos", async (req, res) => {
     const repos = await Repo.find();
     res.status(200).json(repos.map(r => ({
       id: r._id.toString(),
-      name: r.name,
+      name: r.name || r.repositoryName,
+      repositoryName: r.repositoryName,
       owner: r.owner,
       ownerEmail: r.ownerEmail,
       visibility: r.visibility,

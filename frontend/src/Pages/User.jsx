@@ -104,7 +104,7 @@ function User() {
             <span>Repositories</span>
           </div>
           <div className="activity-stat">
-            <strong>{repos.reduce((acc, r) => acc + (r.commits || 1), 0)}</strong>
+            <strong>{repos.reduce((acc, r) => acc + (r.commits || 0), 0)}</strong>
             <span>Contributions</span>
           </div>
           <div className="sidebar-note">
@@ -136,7 +136,8 @@ function User() {
             <div className="repo-grid-list">
               {repos.map((repo) => {
                 const ownerName = repo.owner || activeUsername;
-                const repoPath = `/${ownerName}/${encodeURIComponent(repo.name || repo.repositoryName)}`;
+                const displayName = repo.name || repo.repositoryName || "untitled-repository";
+                const repoPath = `/${ownerName}/${encodeURIComponent(displayName)}`;
                 return (
                   <div
                     key={repo._id || repo.id}
@@ -147,7 +148,7 @@ function User() {
                     <div className="repo-card-top">
                       <h3 className="repo-card-title">
                         <Link to={repoPath} style={{ color: "inherit", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
-                          {repo.name}
+                          {displayName}
                         </Link>
                       </h3>
                       <span className={`repo-badge ${repo.visibility === 'public' || repo.visibility === 'Public' ? 'public' : 'private'}`}>

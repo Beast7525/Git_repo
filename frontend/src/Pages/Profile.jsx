@@ -121,7 +121,7 @@ function Profile() {
           </div>
 
           <div className="activity-stat">
-            <strong>{repos.reduce((acc, r) => acc + (r.commits || 1), 0)}</strong>
+            <strong>{repos.reduce((acc, r) => acc + (r.commits || 0), 0)}</strong>
             <span>Total Commits</span>
           </div>
 
@@ -149,35 +149,38 @@ function Profile() {
             </div>
           ) : repos.length > 0 ? (
             <div className="repo-grid-list">
-              {repos.map((repo) => (
-                <div key={repo._id || repo.id} className="repo-item-card">
-                  <div className="repo-card-top">
-                    <h3 className="repo-card-title">
-                      <Link
-                        to={`/${username}/${encodeURIComponent(repo.name || repo.repositoryName)}`}
-                        style={{ color: "#818cf8", textDecoration: "none" }}
-                      >
-                        {repo.name}
-                      </Link>
-                    </h3>
-                    <span className={`repo-badge ${repo.visibility === "public" || repo.visibility === "Public" ? "public" : "private"}`}>
-                      {repo.visibility === "public" || repo.visibility === "Public" ? "Public" : "Private"}
-                    </span>
-                  </div>
+              {repos.map((repo) => {
+                const displayName = repo.name || repo.repositoryName || "untitled-repository";
+                return (
+                  <div key={repo._id || repo.id} className="repo-item-card">
+                    <div className="repo-card-top">
+                      <h3 className="repo-card-title">
+                        <Link
+                          to={`/${username}/${encodeURIComponent(displayName)}`}
+                          style={{ color: "#818cf8", textDecoration: "none" }}
+                        >
+                          {displayName}
+                        </Link>
+                      </h3>
+                      <span className={`repo-badge ${repo.visibility === "public" || repo.visibility === "Public" ? "public" : "private"}`}>
+                        {repo.visibility === "public" || repo.visibility === "Public" ? "Public" : "Private"}
+                      </span>
+                    </div>
 
-                  <p className="repo-card-desc">
-                    {repo.description || "No description provided for this repository."}
-                  </p>
+                    <p className="repo-card-desc">
+                      {repo.description || "No description provided for this repository."}
+                    </p>
 
-                  <div className="repo-card-meta">
-                    <span className="repo-owner">👤 Owner: <strong>{repo.owner || username}</strong></span>
-                    <span>🔨 {repo.commits || 1} commits</span>
-                    <span className="repo-date">
-                      📅 {repo.creationDate || (repo.createdAt ? repo.createdAt.split("T")[0] : "Recently")}
-                    </span>
+                    <div className="repo-card-meta">
+                      <span className="repo-owner">👤 Owner: <strong>{repo.owner || username}</strong></span>
+                      <span>🔨 {repo.commits || 0} commits</span>
+                      <span className="repo-date">
+                        📅 {repo.creationDate || (repo.createdAt ? repo.createdAt.split("T")[0] : "Recently")}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="empty-repository">

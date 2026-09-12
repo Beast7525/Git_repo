@@ -70,7 +70,8 @@ function All_Repository() {
           <div className="repo-grid-list">
             {repos.map((repo) => {
               const ownerName = repo.owner || "Developer";
-              const repoPath = `/${ownerName}/${encodeURIComponent(repo.name || repo.repositoryName)}`;
+              const displayName = repo.name || repo.repositoryName || "untitled-repository";
+              const repoPath = `/${ownerName}/${encodeURIComponent(displayName)}`;
               const ownerPath = `/${ownerName}`;
               return (
                 <article
@@ -82,7 +83,7 @@ function All_Repository() {
                   <div className="repo-card-top">
                     <h3 className="repo-card-title">
                       <span style={{ color: "#818cf8", textDecoration: "underline" }}>
-                        {repo.name}
+                        {displayName}
                       </span>
                     </h3>
                     <span className={`repo-badge ${repo.visibility === "public" || repo.visibility === "Public" ? "public" : "private"}`}>
@@ -94,7 +95,7 @@ function All_Repository() {
                     <span className="repo-owner" onClick={(e) => { e.stopPropagation(); navigate(ownerPath); }}>
                       Owner: <strong style={{ textDecoration: "underline", color: "#818cf8" }}>{ownerName}</strong>
                     </span>
-                    <span>Commits: {repo.commits || 1}</span>
+                    <span>Commits: {repo.commits || 0}</span>
                     <span>{repo.creationDate || (repo.createdAt ? repo.createdAt.split("T")[0] : "Recently")}</span>
                   </div>
                 </article>

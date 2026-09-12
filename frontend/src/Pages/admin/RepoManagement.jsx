@@ -41,8 +41,9 @@ export default function RepoManagement({ showToast }) {
   });
 
   const filteredRepos = repos.filter((r) => {
+    const displayName = r.name || r.repositoryName || "";
     const matchesSearch =
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      displayName.toLowerCase().includes(search.toLowerCase()) ||
       r.owner.toLowerCase().includes(search.toLowerCase()) ||
       (r.description && r.description.toLowerCase().includes(search.toLowerCase()));
     const matchesVis = visibilityFilter === "All" || r.visibility === visibilityFilter;
@@ -202,7 +203,7 @@ export default function RepoManagement({ showToast }) {
                     <td>
                       <div>
                         <strong style={{ fontSize: "0.95rem", color: "var(--admin-accent-blue)" }}>
-                          📦 {r.name}
+                          📦 {r.name || r.repositoryName || "untitled-repository"}
                         </strong>
                         {r.description && (
                           <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "var(--admin-text-subtle)", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
