@@ -25,6 +25,11 @@ function RepoDetail() {
   const [repo, setRepo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [remoteUrl, setRemoteUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [uploadError, setUploadError] = useState(false);
 
   useEffect(() => {
     if (!username || !repoName || RESERVED_KEYWORDS.includes(username.toLowerCase())) {
@@ -56,6 +61,69 @@ function RepoDetail() {
     loadRepoDetails();
   }, [username, repoName]);
 
+  function handleFileSelection(event) {
+    setSelectedFiles(Array.from(event.target.files || []));
+    setUploadMessage("");
+    setUploadError(false);
+  }
+
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        resolve(result.includes(",") ? result.split(",").pop() : result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleUploadSubmit(event) {
+    event.preventDefault();
+
+    if (!repo?._id || selectedFiles.length === 0) {
+      setUploadError(true);
+      setUploadMessage("Choose at least one file to create the initial commit.");
+      return;
+    }
+
+    setUploading(true);
+    setUploadMessage("");
+    setUploadError(false);
+
+    try {
+      const files = await Promise.all(selectedFiles.map(async (file) => ({
+        path: file.webkitRelativePath || file.name,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        content: await readFileAsBase64(file)
+      })));
+
+      const res = await fetch(`${API_BASE_URL}/api/repos/${repo._id}/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files, remoteUrl: remoteUrl.trim() })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || res.statusText);
+      }
+
+      setRepo(data.repo);
+      setSelectedFiles([]);
+      setUploadError(data.repo?.pushStatus === "failed");
+      setUploadMessage(data.message || "Initial commit created.");
+    } catch (error) {
+      setUploadError(true);
+      setUploadMessage(error.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   if (notFound) {
     return (
       <NotFound
@@ -77,6 +145,7 @@ function RepoDetail() {
   }
 
   const isPublic = repo.visibility === "public" || repo.visibility === "Public";
+  const hasInitialCommit = Number(repo.commits || 0) > 0 && repo.lastCommit?.hash;
 
   return (
     <main className="app">
@@ -139,7 +208,7 @@ function RepoDetail() {
 
           <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", fontSize: "0.9rem", color: "rgba(255,255,255,0.8)" }}>
             <span>👤 Owner: <strong>{repo.owner || username}</strong></span>
-            <span>🔨 Commits: <strong>{repo.commits || 1}</strong></span>
+            <span>🔨 Commits: <strong>{repo.commits || 0}</strong></span>
             <span>👥 Contributors: <strong>{repo.contributors || 1}</strong></span>
             <span>⭐ Stars: <strong>{repo.stars || 0}</strong></span>
             <span>🍴 Forks: <strong>{repo.forks || 0}</strong></span>
@@ -150,6 +219,61 @@ function RepoDetail() {
             )}
           </div>
         </section>
+
+        {!hasInitialCommit && (
+          <section className="repo-upload-panel">
+            <div>
+              <p className="repository-eyebrow">INITIAL COMMIT</p>
+              <h2>Upload project files</h2>
+              <p className="repo-upload-copy">
+                Select files or a project folder. Gitrepo will run git init, add everything, create the Initial commit,
+                rename the branch to main, and push to origin when you provide a remote URL.
+              </p>
+            </div>
+
+            <form className="repo-upload-form" onSubmit={handleUploadSubmit}>
+              <label htmlFor="repo-files">Files</label>
+              <input
+                id="repo-files"
+                type="file"
+                multiple
+                onChange={handleFileSelection}
+              />
+              <label htmlFor="repo-folder">Folder</label>
+              <input
+                id="repo-folder"
+                type="file"
+                multiple
+                webkitdirectory=""
+                onChange={handleFileSelection}
+              />
+              <span className="repo-upload-hint">
+                {selectedFiles.length > 0
+                  ? `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"} selected`
+                  : "Choose a folder, or use your browser file picker to select multiple files."}
+              </span>
+
+              <label htmlFor="remote-url">Origin remote URL <span>(optional)</span></label>
+              <input
+                id="remote-url"
+                type="url"
+                value={remoteUrl}
+                onChange={(event) => setRemoteUrl(event.target.value)}
+                placeholder="https://github.com/user/repository.git"
+              />
+
+              <button className="new-repository" type="submit" disabled={uploading}>
+                {uploading ? "Creating initial commit..." : "Upload and commit"}
+              </button>
+
+              {uploadMessage && (
+                <p className={`repo-upload-status ${uploadError ? "error" : "success"}`}>
+                  {uploadMessage}
+                </p>
+              )}
+            </form>
+          </section>
+        )}
 
         {/* Repository Code & Content Preview Card */}
         <section style={{
@@ -167,11 +291,28 @@ function RepoDetail() {
             gap: "10px",
             fontSize: "0.9rem"
           }}>
-            <strong style={{ color: "#818cf8" }}>📄 README.md</strong>
+            <strong style={{ color: "#818cf8" }}>{hasInitialCommit ? `main · ${repo.files?.length || 0} files` : "Waiting for upload"}</strong>
           </div>
           <div style={{ padding: "30px", lineHeight: "1.6" }}>
             <h2 style={{ fontSize: "1.4rem", marginTop: 0 }}>{repo.name}</h2>
             <p>{repo.description || "Welcome to the repository!"}</p>
+            {hasInitialCommit && (
+              <>
+                <div className="repo-commit-summary">
+                  <span>Latest commit</span>
+                  <strong>{repo.lastCommit.hash.slice(0, 7)}</strong>
+                  <span>{repo.lastCommit.message}</span>
+                </div>
+                <div className="repo-file-list">
+                  {(repo.files || []).map((file) => (
+                    <div className="repo-file-row" key={file.path}>
+                      <span>📄 {file.path}</span>
+                      <small>{Math.max(1, Math.round((file.size || 0) / 1024))} KB</small>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
             <div style={{
               background: "rgba(0, 0, 0, 0.3)",
               padding: "16px",
@@ -180,10 +321,15 @@ function RepoDetail() {
               fontSize: "0.88rem",
               marginTop: "16px"
             }}>
-              $ git clone https://gitrepo.com/{username}/{repo.name}.git<br />
+              $ git clone {repo.remoteUrl || `https://gitrepo.com/${username}/${repo.name}.git`}<br />
               $ cd {repo.name}<br />
               $ npm install
             </div>
+            {repo.pushStatus === "failed" && (
+              <p className="repo-upload-status error">
+                Local commit exists, but push failed: {repo.pushMessage}
+              </p>
+            )}
           </div>
         </section>
       </div>

@@ -1,5 +1,6 @@
 const express = require("express");
 const Repo = require("../models/Repo");
+const { initializeRepository } = require("../gitRepositoryService");
 
 const router = express.Router();
 
@@ -61,7 +62,7 @@ router.post("/", async (req, res) => {
       owner: owner || "Admin",
       ownerEmail: ownerEmail || "",
       contributors: 1,
-      commits: 1,
+      commits: 0,
       status: "Active"
     });
 
@@ -70,6 +71,51 @@ router.post("/", async (req, res) => {
   } catch (error) {
     console.error("Error creating repository:", error);
     res.status(500).json({ message: "Error creating repository: " + error.message });
+  }
+});
+
+// POST /api/repos/:id/upload - Store files, initialize git, commit, and optionally push to origin
+router.post("/:id/upload", async (req, res) => {
+  try {
+    const { files, remoteUrl } = req.body;
+
+    if (!Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ message: "Please upload at least one file." });
+    }
+
+    const repo = await Repo.findById(req.params.id);
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    if (repo.commits > 0 && repo.lastCommit?.hash) {
+      return res.status(409).json({ message: "Repository already has an initial commit." });
+    }
+
+    const result = await initializeRepository(repo, files, typeof remoteUrl === "string" ? remoteUrl.trim() : "");
+    repo.storagePath = result.repoDir;
+    repo.files = result.files.map((file) => {
+      const b2File = result.b2Files.find((uploaded) => uploaded.path === file.path);
+      return { ...file, b2FileName: b2File?.b2FileName || "" };
+    });
+    repo.defaultBranch = "main";
+    repo.remoteUrl = result.remoteUrl;
+    repo.commits = 1;
+    repo.lastCommit = result.commit;
+    repo.pushStatus = result.pushStatus;
+    repo.pushMessage = result.pushMessage;
+
+    await repo.save();
+
+    res.status(200).json({
+      message: result.pushStatus === "failed"
+        ? "Files committed locally, but push to origin failed."
+        : "Files uploaded and initial commit created.",
+      repo
+    });
+  } catch (error) {
+    console.error("Error uploading repository files:", error);
+    res.status(500).json({ message: "Error uploading repository files: " + error.message });
   }
 });
 

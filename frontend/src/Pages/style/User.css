@@ -483,3 +483,128 @@ h2 {
   color: #f87171;
   border-color: rgba(239, 68, 68, 0.3);
 }
+
+.repo-upload-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 1px solid rgba(220, 245, 224, 0.16);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.repo-upload-panel h2 {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+}
+
+.repo-upload-copy,
+.repo-upload-hint {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.repo-upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.repo-upload-form label {
+  color: #f5f6ef;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.repo-upload-form label span {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+}
+
+.repo-upload-form input {
+  width: 100%;
+  border: 1px solid rgba(220, 245, 224, 0.18);
+  border-radius: 9px;
+  background: rgba(8, 20, 17, 0.42);
+  color: #f5f6ef;
+  font: inherit;
+  padding: 12px 13px;
+}
+
+.repo-upload-form .new-repository {
+  margin-top: 8px;
+  width: fit-content;
+}
+
+.repo-upload-status {
+  margin: 8px 0 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.repo-upload-status.success {
+  color: #34d399;
+}
+
+.repo-upload-status.error {
+  color: #f87171;
+}
+
+.repo-commit-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(220, 245, 224, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.84rem;
+}
+
+.repo-commit-summary strong {
+  color: #a7dda6;
+  font-family: monospace;
+}
+
+.repo-file-list {
+  overflow: hidden;
+  border: 1px solid rgba(220, 245, 224, 0.12);
+  border-radius: 8px;
+}
+
+.repo-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(220, 245, 224, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.86rem;
+}
+
+.repo-file-row:last-child {
+  border-bottom: 0;
+}
+
+.repo-file-row small {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.52);
+}
+
+@media (max-width: 760px) {
+  .repo-upload-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .repo-upload-form .new-repository {
+    width: 100%;
+  }
+}

@@ -123,7 +123,7 @@ router.post("/repos", async (req, res) => {
       owner: owner || "Developer",
       ownerEmail: ownerEmail || "",
       contributors: 1,
-      commits: 1,
+      commits: 0,
       status: "Active"
     });
 
