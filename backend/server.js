@@ -3,7 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const dns = require("dns");
-
+const { authorizeB2 } = require("./backblaze");
 // Set DNS servers for MongoDB Atlas SRV resolution
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
@@ -58,3 +58,6 @@ mongoose
     console.error("MongoDB connection error on startup:", error);
     process.exit(1);
   });
+authorizeB2().catch((err) => {
+  console.error("❌ Backblaze connection failed:", err.message);
+});
