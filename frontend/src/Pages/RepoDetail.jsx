@@ -25,8 +25,8 @@ function RepoDetail() {
   const [repo, setRepo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [remoteUrl, setRemoteUrl] = useState("");
+  const [fileToUpload, setFileToUpload] = useState(null);
+  const [commitMessage, setCommitMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadError, setUploadError] = useState(false);
@@ -61,30 +61,20 @@ function RepoDetail() {
     loadRepoDetails();
   }, [username, repoName]);
 
-  function handleFileSelection(event) {
-    setSelectedFiles(Array.from(event.target.files || []));
-    setUploadMessage("");
-    setUploadError(false);
+  function handleFileChange(event) {
+    if (event.target.files && event.target.files[0]) {
+      setFileToUpload(event.target.files[0]);
+      setUploadMessage("");
+      setUploadError(false);
+    }
   }
 
-  function readFileAsBase64(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = String(reader.result || "");
-        resolve(result.includes(",") ? result.split(",").pop() : result);
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function handleUploadSubmit(event) {
+  async function handleFileUploadSubmit(event) {
     event.preventDefault();
 
-    if (!repo?._id || selectedFiles.length === 0) {
+    if (!fileToUpload) {
       setUploadError(true);
-      setUploadMessage("Choose at least one file to create the initial commit.");
+      setUploadMessage("Please select a file to upload.");
       return;
     }
 
@@ -93,18 +83,13 @@ function RepoDetail() {
     setUploadError(false);
 
     try {
-      const files = await Promise.all(selectedFiles.map(async (file) => ({
-        path: file.webkitRelativePath || file.name,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        content: await readFileAsBase64(file)
-      })));
+      const formData = new FormData();
+      formData.append("file", fileToUpload);
+      formData.append("message", commitMessage.trim() || `Upload ${fileToUpload.name}`);
 
-      const res = await fetch(`${API_BASE_URL}/api/repos/${repo._id}/upload`, {
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ files, remoteUrl: remoteUrl.trim() })
+        body: formData
       });
 
       const data = await res.json().catch(() => ({}));
@@ -113,9 +98,10 @@ function RepoDetail() {
       }
 
       setRepo(data.repo);
-      setSelectedFiles([]);
-      setUploadError(data.repo?.pushStatus === "failed");
-      setUploadMessage(data.message || "Initial commit created.");
+      setFileToUpload(null);
+      setCommitMessage("");
+      setUploadError(false);
+      setUploadMessage(data.message || "File uploaded to Backblaze B2 cloud storage!");
     } catch (error) {
       setUploadError(true);
       setUploadMessage(error.message || "Upload failed.");
@@ -145,7 +131,7 @@ function RepoDetail() {
   }
 
   const isPublic = repo.visibility === "public" || repo.visibility === "Public";
-  const hasInitialCommit = Number(repo.commits || 0) > 0 && repo.lastCommit?.hash;
+  const repoFiles = repo.files || [];
 
   return (
     <main className="app">
@@ -159,7 +145,7 @@ function RepoDetail() {
             style={{
               background: "none",
               border: "none",
-              color: "#818cf8",
+              color: "#a7dda6",
               cursor: "pointer",
               fontSize: "0.95rem",
               padding: 0,
@@ -168,7 +154,7 @@ function RepoDetail() {
           >
             &larr; Back
           </button>
-          <Link to={`/${username}`} style={{ color: "#818cf8", textDecoration: "none", fontWeight: "600" }}>
+          <Link to={`/${username}`} style={{ color: "#a7dda6", textDecoration: "none", fontWeight: "600" }}>
             {username}
           </Link>
           <span style={{ margin: "0 8px", color: "rgba(255,255,255,0.4)" }}>/</span>
@@ -209,73 +195,59 @@ function RepoDetail() {
           <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", fontSize: "0.9rem", color: "rgba(255,255,255,0.8)" }}>
             <span>👤 Owner: <strong>{repo.owner || username}</strong></span>
             <span>🔨 Commits: <strong>{repo.commits || 0}</strong></span>
+            <span>📂 Files: <strong>{repoFiles.length}</strong></span>
             <span>👥 Contributors: <strong>{repo.contributors || 1}</strong></span>
             <span>⭐ Stars: <strong>{repo.stars || 0}</strong></span>
             <span>🍴 Forks: <strong>{repo.forks || 0}</strong></span>
-            {repo.ignoreGitignore ? (
-              <span style={{ color: "#f43f5e" }}>🚫 No .gitignore</span>
-            ) : (
-              <span style={{ color: "#34d399" }}>📄 Standard .gitignore</span>
-            )}
           </div>
         </section>
 
-        {!hasInitialCommit && (
-          <section className="repo-upload-panel">
-            <div>
-              <p className="repository-eyebrow">INITIAL COMMIT</p>
-              <h2>Upload project files</h2>
-              <p className="repo-upload-copy">
-                Select files or a project folder. Gitrepo will run git init, add everything, create the Initial commit,
-                rename the branch to main, and push to origin when you provide a remote URL.
-              </p>
-            </div>
+        {/* Upload File to Backblaze B2 Storage Form */}
+        <section className="repo-upload-panel" style={{ marginBottom: "24px" }}>
+          <div>
+            <p className="eyebrow" style={{ color: "#a7dda6" }}>BACKBLAZE CLOUD STORAGE</p>
+            <h2>Upload File to Repository</h2>
+            <p className="repo-upload-copy">
+              Choose a file to upload directly to <strong>Backblaze B2 Cloud Storage</strong>. The file will be stored safely in the cloud and attached to this repository.
+            </p>
+          </div>
 
-            <form className="repo-upload-form" onSubmit={handleUploadSubmit}>
-              <label htmlFor="repo-files">Files</label>
-              <input
-                id="repo-files"
-                type="file"
-                multiple
-                onChange={handleFileSelection}
-              />
-              <label htmlFor="repo-folder">Folder</label>
-              <input
-                id="repo-folder"
-                type="file"
-                multiple
-                webkitdirectory=""
-                onChange={handleFileSelection}
-              />
-              <span className="repo-upload-hint">
-                {selectedFiles.length > 0
-                  ? `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"} selected`
-                  : "Choose a folder, or use your browser file picker to select multiple files."}
+          <form className="repo-upload-form" onSubmit={handleFileUploadSubmit}>
+            <label htmlFor="repo-file-input">Select File</label>
+            <input
+              id="repo-file-input"
+              type="file"
+              onChange={handleFileChange}
+              required
+            />
+            {fileToUpload && (
+              <span className="repo-upload-hint" style={{ color: "#a7dda6" }}>
+                Selected: {fileToUpload.name} ({(fileToUpload.size / 1024).toFixed(1)} KB)
               </span>
+            )}
 
-              <label htmlFor="remote-url">Origin remote URL <span>(optional)</span></label>
-              <input
-                id="remote-url"
-                type="url"
-                value={remoteUrl}
-                onChange={(event) => setRemoteUrl(event.target.value)}
-                placeholder="https://github.com/user/repository.git"
-              />
+            <label htmlFor="commit-msg">Commit / Upload Message <span>(optional)</span></label>
+            <input
+              id="commit-msg"
+              type="text"
+              value={commitMessage}
+              onChange={(e) => setCommitMessage(e.target.value)}
+              placeholder="e.g. Add main application source code"
+            />
 
-              <button className="new-repository" type="submit" disabled={uploading}>
-                {uploading ? "Creating initial commit..." : "Upload and commit"}
-              </button>
+            <button className="new-repository" type="submit" disabled={uploading}>
+              {uploading ? "Uploading to Backblaze..." : "☁️ Upload to Backblaze Cloud"}
+            </button>
 
-              {uploadMessage && (
-                <p className={`repo-upload-status ${uploadError ? "error" : "success"}`}>
-                  {uploadMessage}
-                </p>
-              )}
-            </form>
-          </section>
-        )}
+            {uploadMessage && (
+              <p className={`repo-upload-status ${uploadError ? "error" : "success"}`}>
+                {uploadMessage}
+              </p>
+            )}
+          </form>
+        </section>
 
-        {/* Repository Code & Content Preview Card */}
+        {/* Repository Code & File Browser Preview Card */}
         <section style={{
           background: "rgba(15, 23, 42, 0.6)",
           borderRadius: "14px",
@@ -288,48 +260,65 @@ function RepoDetail() {
             borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            justifyContent: "space-between",
             fontSize: "0.9rem"
           }}>
-            <strong style={{ color: "#818cf8" }}>{hasInitialCommit ? `main · ${repo.files?.length || 0} files` : "Waiting for upload"}</strong>
-          </div>
-          <div style={{ padding: "30px", lineHeight: "1.6" }}>
-            <h2 style={{ fontSize: "1.4rem", marginTop: 0 }}>{repo.name}</h2>
-            <p>{repo.description || "Welcome to the repository!"}</p>
-            {hasInitialCommit && (
-              <>
-                <div className="repo-commit-summary">
-                  <span>Latest commit</span>
-                  <strong>{repo.lastCommit.hash.slice(0, 7)}</strong>
-                  <span>{repo.lastCommit.message}</span>
-                </div>
-                <div className="repo-file-list">
-                  {(repo.files || []).map((file) => (
-                    <div className="repo-file-row" key={file.path}>
-                      <span>📄 {file.path}</span>
-                      <small>{Math.max(1, Math.round((file.size || 0) / 1024))} KB</small>
-                    </div>
-                  ))}
-                </div>
-              </>
+            <strong style={{ color: "#a7dda6" }}>
+              📁 Repository Files ({repoFiles.length})
+            </strong>
+            {repo.lastCommit?.message && (
+              <span style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.6)" }}>
+                Latest: {repo.lastCommit.message}
+              </span>
             )}
+          </div>
+
+          <div style={{ padding: "24px", lineHeight: "1.6" }}>
+            {repoFiles.length > 0 ? (
+              <div className="repo-file-list">
+                {repoFiles.map((file, idx) => (
+                  <div className="repo-file-row" key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span>📄 <strong>{file.path || file.b2FileName}</strong></span>
+                      <span style={{ fontSize: "0.72rem", background: "rgba(167, 221, 166, 0.15)", color: "#a7dda6", padding: "2px 8px", borderRadius: "999px", border: "1px solid rgba(167, 221, 166, 0.3)" }}>
+                        ☁️ Backblaze B2
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                      <small>{Math.max(1, Math.round((file.size || 0) / 1024))} KB</small>
+                      {file.b2Url && (
+                        <a
+                          href={file.b2Url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "#a7dda6", textDecoration: "underline", fontSize: "0.84rem" }}
+                        >
+                          Download / View
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "30px", color: "rgba(255,255,255,0.6)" }}>
+                <p>No files uploaded to this repository yet.</p>
+                <p style={{ fontSize: "0.85rem", margin: 0 }}>Use the form above to upload files into Backblaze B2 Cloud Storage.</p>
+              </div>
+            )}
+
             <div style={{
               background: "rgba(0, 0, 0, 0.3)",
               padding: "16px",
               borderRadius: "8px",
               fontFamily: "monospace",
               fontSize: "0.88rem",
-              marginTop: "16px"
+              marginTop: "24px"
             }}>
               $ git clone {repo.remoteUrl || `https://gitrepo.com/${username}/${repo.name}.git`}<br />
               $ cd {repo.name}<br />
               $ npm install
             </div>
-            {repo.pushStatus === "failed" && (
-              <p className="repo-upload-status error">
-                Local commit exists, but push failed: {repo.pushMessage}
-              </p>
-            )}
           </div>
         </section>
       </div>

@@ -26,14 +26,15 @@ function All_Repository() {
           if (activeUsername) params.append("owner", activeUsername);
         }
 
-        if (!params.toString()) {
-          setRepos([]);
-          return;
+        let response = await fetch(`${API_BASE_URL}/api/repos?${params.toString()}`);
+        if (response.ok) {
+          let data = await response.json();
+          if (!Array.isArray(data) || data.length === 0) {
+            const fallbackRes = await fetch(`${API_BASE_URL}/api/repos`);
+            if (fallbackRes.ok) data = await fallbackRes.json();
+          }
+          setRepos(Array.isArray(data) ? data : []);
         }
-
-        const response = await fetch(`${API_BASE_URL}/api/repos?${params.toString()}`);
-        if (!response.ok) throw new Error("Could not load repositories");
-        setRepos(await response.json());
       } catch (error) {
         console.error("Error loading repositories:", error);
       } finally {
@@ -71,8 +72,9 @@ function All_Repository() {
             {repos.map((repo) => {
               const ownerName = repo.owner || "Developer";
               const displayName = repo.name || repo.repositoryName || "untitled-repository";
-              const repoPath = `/${ownerName}/${encodeURIComponent(displayName)}`;
-              const ownerPath = `/${ownerName}`;
+              const ownerSlug = ownerName.trim().replace(/\s+/g, "-").toLowerCase();
+              const repoPath = `/${ownerSlug}/${encodeURIComponent(displayName)}`;
+              const ownerPath = `/${ownerSlug}`;
               return (
                 <article
                   key={repo._id || repo.id}
@@ -82,7 +84,7 @@ function All_Repository() {
                 >
                   <div className="repo-card-top">
                     <h3 className="repo-card-title">
-                      <span style={{ color: "#818cf8", textDecoration: "underline" }}>
+                      <span style={{ color: "#a7dda6", textDecoration: "underline" }}>
                         {displayName}
                       </span>
                     </h3>
@@ -93,7 +95,7 @@ function All_Repository() {
                   <p className="repo-card-desc">{repo.description || "No description provided for this repository."}</p>
                   <div className="repo-card-meta">
                     <span className="repo-owner" onClick={(e) => { e.stopPropagation(); navigate(ownerPath); }}>
-                      Owner: <strong style={{ textDecoration: "underline", color: "#818cf8" }}>{ownerName}</strong>
+                      Owner: <strong style={{ textDecoration: "underline", color: "#a7dda6" }}>{ownerName}</strong>
                     </span>
                     <span>Commits: {repo.commits || 0}</span>
                     <span>{repo.creationDate || (repo.createdAt ? repo.createdAt.split("T")[0] : "Recently")}</span>

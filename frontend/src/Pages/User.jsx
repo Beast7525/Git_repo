@@ -137,7 +137,8 @@ function User() {
               {repos.map((repo) => {
                 const ownerName = repo.owner || activeUsername;
                 const displayName = repo.name || repo.repositoryName || "untitled-repository";
-                const repoPath = `/${ownerName}/${encodeURIComponent(displayName)}`;
+                const ownerSlug = ownerName.trim().replace(/\s+/g, "-").toLowerCase();
+                const repoPath = `/${ownerSlug}/${encodeURIComponent(displayName)}`;
                 return (
                   <div
                     key={repo._id || repo.id}
