@@ -146,15 +146,15 @@ const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 const { b2, authorizeB2 } = require("../backblaze");
 
-// POST /api/repos/find/:owner/:repoName/upload - Upload file to Backblaze B2 storage for repository
-router.post("/find/:owner/:repoName/upload", upload.single("file"), async (req, res) => {
+// POST /api/repos/find/:owner/:repoName/upload - Upload single/multiple files or folder to Backblaze B2
+router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { message } = req.body;
-    const file = req.file;
+    const files = req.files || (req.file ? [req.file] : []);
 
-    if (!file) {
-      return res.status(400).json({ message: "No file uploaded" });
+    if (!files || files.length === 0) {
+      return res.status(400).json({ message: "No files uploaded" });
     }
 
     const ownerRegex = flexibleIdentityRegex(owner);
@@ -191,56 +191,69 @@ router.post("/find/:owner/:repoName/upload", upload.single("file"), async (req, 
     }
 
     // Backblaze B2 Upload logic
-    let b2FileName = `repos/${repo._id}/${Date.now()}_${file.originalname}`;
-    let b2Url = "";
+    let bucketName = process.env.B2_BUCKET_NAME || "GitRepo";
+    let bucketId = null;
     try {
       await authorizeB2();
-      const bucketName = process.env.B2_BUCKET_NAME || "GitRepo";
       const bucketRes = await b2.getBucket({ bucketName });
-      const bucketId = bucketRes.data?.buckets?.[0]?.bucketId;
-      
-      if (bucketId) {
-        const uploadUrlRes = await b2.getUploadUrl({ bucketId });
-        const { uploadUrl, authorizationToken } = uploadUrlRes.data;
-        await b2.uploadFile({
-          uploadUrl,
-          uploadAuthToken: authorizationToken,
-          fileName: b2FileName,
-          data: file.buffer,
-        });
-        b2Url = `https://f000.backblazeb2.com/file/${bucketName}/${b2FileName}`;
-      }
+      bucketId = bucketRes.data?.buckets?.[0]?.bucketId;
     } catch (b2Err) {
-      console.warn("Backblaze B2 upload notice:", b2Err.message);
+      console.warn("Backblaze B2 auth notice:", b2Err.message);
     }
 
-    const newFileObj = {
-      path: file.originalname,
-      size: file.size,
-      contentType: file.mimetype,
-      b2FileName: b2FileName,
-      b2Url: b2Url,
-      uploadedAt: new Date()
-    };
-
     repo.files = repo.files || [];
-    const existingIndex = repo.files.findIndex(f => f.path === file.originalname);
-    if (existingIndex >= 0) {
-      repo.files[existingIndex] = newFileObj;
-    } else {
-      repo.files.push(newFileObj);
+    let uploadedCount = 0;
+
+    for (const file of files) {
+      const fileName = file.originalname || file.filename || "file";
+      const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_");
+      const b2FileName = `repos/${repo._id}/${Date.now()}_${sanitizedFileName}`;
+      let b2Url = "";
+
+      if (bucketId) {
+        try {
+          const uploadUrlRes = await b2.getUploadUrl({ bucketId });
+          const { uploadUrl, authorizationToken } = uploadUrlRes.data;
+          await b2.uploadFile({
+            uploadUrl,
+            uploadAuthToken: authorizationToken,
+            fileName: b2FileName,
+            data: file.buffer,
+          });
+          b2Url = `https://f000.backblazeb2.com/file/${bucketName}/${b2FileName}`;
+        } catch (uploadErr) {
+          console.warn(`B2 upload notice for ${fileName}:`, uploadErr.message);
+        }
+      }
+
+      const newFileObj = {
+        path: fileName,
+        size: file.size,
+        contentType: file.mimetype,
+        b2FileName: b2FileName,
+        b2Url: b2Url,
+        uploadedAt: new Date()
+      };
+
+      const existingIndex = repo.files.findIndex(f => f.path === fileName);
+      if (existingIndex >= 0) {
+        repo.files[existingIndex] = newFileObj;
+      } else {
+        repo.files.push(newFileObj);
+      }
+      uploadedCount++;
     }
 
     repo.commits = (repo.commits || 0) + 1;
     repo.lastCommit = {
       hash: Math.random().toString(36).substring(2, 9),
-      message: message || `Upload ${file.originalname}`,
+      message: message || `Uploaded ${uploadedCount} file${uploadedCount > 1 ? "s" : ""} to Backblaze B2`,
       branch: repo.defaultBranch || "main",
       committedAt: new Date()
     };
 
     await repo.save();
-    res.status(200).json({ message: "File uploaded successfully to Backblaze B2 cloud storage", repo });
+    res.status(200).json({ message: `Successfully uploaded ${uploadedCount} file(s) to Backblaze B2 cloud storage`, repo });
   } catch (error) {
     console.error("Error uploading file to repo:", error);
     res.status(500).json({ message: "Upload failed: " + error.message });

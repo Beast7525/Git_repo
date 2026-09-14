@@ -1,0 +1,537 @@
+/* GitHub Dark Theme Design Tokens for Repository Interface */
+:root {
+  --gh-bg: #0d1117;
+  --gh-subsurface: #161b22;
+  --gh-header-bg: #161b22;
+  --gh-border: #30363d;
+  --gh-border-subtle: #21262d;
+  --gh-text: #c9d1d9;
+  --gh-text-muted: #8b949e;
+  --gh-text-white: #f0f6fc;
+  --gh-link: #58a6ff;
+  --gh-btn-bg: #21262d;
+  --gh-btn-hover: #30363d;
+  --gh-btn-green: #238636;
+  --gh-btn-green-hover: #2ea043;
+  --gh-tag-bg: rgba(56, 139, 253, 0.15);
+  --gh-tag-text: #58a6ff;
+}
+
+.gh-repo-page {
+  background-color: var(--gh-bg);
+  color: var(--gh-text);
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* GitHub Repository Top Header */
+.gh-repo-header {
+  background-color: var(--gh-header-bg);
+  border-bottom: 1px solid var(--gh-border);
+  padding: 16px 32px 0;
+}
+
+.gh-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.gh-repo-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.25rem;
+}
+
+.gh-repo-icon {
+  color: var(--gh-text-muted);
+  font-size: 1.1rem;
+}
+
+.gh-owner-link, .gh-repo-name-link {
+  color: var(--gh-link);
+  text-decoration: none;
+  font-weight: 400;
+}
+
+.gh-owner-link:hover, .gh-repo-name-link:hover {
+  text-decoration: underline;
+}
+
+.gh-repo-name-link {
+  font-weight: 600;
+}
+
+.gh-badge-public {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid var(--gh-border);
+  color: var(--gh-text-muted);
+}
+
+.gh-badge-private {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid #d29922;
+  color: #e3b341;
+}
+
+/* GitHub Action Buttons (Watch, Fork, Star) */
+.gh-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gh-btn-group {
+  display: inline-flex;
+  border-radius: 6px;
+  border: 1px solid var(--gh-border);
+  overflow: hidden;
+  background-color: var(--gh-btn-bg);
+}
+
+.gh-btn {
+  background: var(--gh-btn-bg);
+  color: var(--gh-text);
+  border: 1px solid var(--gh-border);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.gh-btn:hover {
+  background-color: var(--gh-btn-hover);
+  border-color: #8b949e;
+}
+
+.gh-btn-count {
+  background-color: rgba(110, 118, 129, 0.4);
+  color: var(--gh-text);
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.gh-btn-green {
+  background-color: var(--gh-btn-green);
+  color: #ffffff;
+  border: 1px solid rgba(240, 246, 252, 0.1);
+  font-weight: 600;
+}
+
+.gh-btn-green:hover {
+  background-color: var(--gh-btn-green-hover);
+}
+
+/* GitHub Navigation Tabs */
+.gh-nav-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid transparent;
+}
+
+.gh-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  color: var(--gh-text-muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.gh-tab-item:hover {
+  color: var(--gh-text);
+}
+
+.gh-tab-item.active {
+  color: var(--gh-text-white);
+  border-bottom-color: #f78166;
+  font-weight: 600;
+}
+
+.gh-tab-counter {
+  background-color: rgba(110, 118, 129, 0.2);
+  color: var(--gh-text-muted);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+/* GitHub Main Layout Container */
+.gh-main-container {
+  max-width: 1280px;
+  margin: 24px auto;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 296px;
+  gap: 32px;
+}
+
+/* Branch & Action Controls Row */
+.gh-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.gh-controls-left, .gh-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gh-branch-selector {
+  background: var(--gh-btn-bg);
+  color: var(--gh-text);
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gh-branch-selector:hover {
+  background-color: var(--gh-btn-hover);
+}
+
+.gh-meta-info {
+  color: var(--gh-text-muted);
+  font-size: 13px;
+}
+
+/* Commit Banner */
+.gh-commit-banner {
+  background-color: var(--gh-subsurface);
+  border: 1px solid var(--gh-border);
+  border-radius: 6px 6px 0 0;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.gh-commit-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.gh-author-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.gh-commit-msg {
+  color: var(--gh-text-white);
+  font-weight: 500;
+}
+
+.gh-commit-hash {
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+  font-size: 12px;
+  color: var(--gh-link);
+  background: rgba(110, 118, 129, 0.15);
+  padding: 3px 6px;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.gh-commit-hash:hover {
+  text-decoration: underline;
+}
+
+/* GitHub File Explorer Table */
+.gh-file-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--gh-subsurface);
+  border: 1px solid var(--gh-border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.gh-file-row {
+  border-top: 1px solid var(--gh-border-subtle);
+  transition: background-color 0.12s ease;
+}
+
+.gh-file-row:hover {
+  background-color: rgba(110, 118, 129, 0.08);
+}
+
+.gh-file-cell {
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+.gh-file-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gh-text-white);
+}
+
+.gh-file-link {
+  color: var(--gh-text-white);
+  text-decoration: none;
+}
+
+.gh-file-link:hover {
+  color: var(--gh-link);
+  text-decoration: underline;
+}
+
+.gh-b2-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background-color: rgba(56, 139, 253, 0.15);
+  color: #58a6ff;
+  border: 1px solid rgba(56, 139, 253, 0.3);
+}
+
+/* GitHub README Container */
+.gh-readme-card {
+  background-color: var(--gh-subsurface);
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.gh-readme-header {
+  background-color: var(--gh-bg);
+  border-bottom: 1px solid var(--gh-border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gh-text-white);
+}
+
+.gh-readme-body {
+  padding: 32px;
+  color: var(--gh-text);
+  line-height: 1.6;
+}
+
+.gh-readme-body h1, .gh-readme-body h2, .gh-readme-body h3 {
+  color: var(--gh-text-white);
+  border-bottom: 1px solid var(--gh-border-subtle);
+  padding-bottom: 8px;
+  margin-top: 24px;
+}
+
+.gh-code-block {
+  background-color: var(--gh-bg);
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
+  padding: 16px;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+  font-size: 13px;
+  overflow-x: auto;
+  color: #e6edf3;
+  margin: 16px 0;
+}
+
+/* GitHub Right Sidebar */
+.gh-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  font-size: 13px;
+}
+
+.gh-sidebar-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gh-text-white);
+  margin-bottom: 12px;
+}
+
+.gh-sidebar-desc {
+  color: var(--gh-text);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.gh-topic-tag {
+  display: inline-block;
+  background-color: var(--gh-tag-bg);
+  color: var(--gh-tag-text);
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0 4px 6px 0;
+  text-decoration: none;
+}
+
+.gh-topic-tag:hover {
+  background-color: rgba(56, 139, 253, 0.25);
+}
+
+.gh-lang-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.gh-lang-segment {
+  height: 100%;
+}
+
+.gh-lang-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--gh-text-muted);
+}
+
+.gh-lang-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+/* Upload Modal Overlay */
+.gh-upload-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.gh-upload-modal {
+  background: var(--gh-subsurface);
+  border: 1px solid var(--gh-border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 540px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.gh-upload-modal h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+  color: var(--gh-text-white);
+}
+
+/* GitHub Interactive Dropzone Styles */
+.gh-dropzone {
+  background-color: var(--gh-subsurface);
+  border: 2px dashed var(--gh-border);
+  border-radius: 8px;
+  padding: 40px 24px;
+  text-align: center;
+  margin-bottom: 24px;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.gh-dropzone:hover {
+  border-color: var(--gh-text-muted);
+}
+
+.gh-dropzone.dragging {
+  border-color: #58a6ff;
+  background-color: rgba(56, 139, 253, 0.08);
+  box-shadow: 0 0 15px rgba(88, 166, 255, 0.2);
+}
+
+.gh-dropzone-icon {
+  font-size: 2.5rem;
+  margin-bottom: 4px;
+}
+
+.gh-dropzone-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--gh-text-white);
+}
+
+.gh-dropzone-sub {
+  font-size: 13px;
+  color: var(--gh-text-muted);
+}
+
+.gh-dropzone-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.gh-file-list-preview {
+  margin-top: 12px;
+  max-height: 150px;
+  overflow-y: auto;
+  background: var(--gh-bg);
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .gh-main-container {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+}
+
