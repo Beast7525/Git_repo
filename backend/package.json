@@ -5,13 +5,13 @@
   },
   "dependencies": {
     "backblaze-b2": "^1.7.1",
-    "bcryptjs": "^2.4.3",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.9.2",
-    "multer": "^2.3.0",
-    "nodemailer": "^9.0.5"
+    "mongoose": "^9.10.1",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.10"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
