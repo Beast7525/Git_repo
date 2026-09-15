@@ -1,21 +1,10 @@
-import { Outlet, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { Outlet } from "react-router-dom";
 import PageLoader from "./PageLoader";
+import { useLoading } from "../context/LoadingContext";
 
 function Layout() {
-  const location = useLocation();
-  const [loading, setLoading] = useState(false);
+  const { loading } = useLoading();
 
-  useEffect(() => {
-    setLoading(true);
-
-    const timer = setTimeout(() => {
-      setLoading(false);        
-    }, 2800);
-
-    return () => clearTimeout(timer);
-  }, [location]);
-          
   return (
     <>
       {loading && <PageLoader />}

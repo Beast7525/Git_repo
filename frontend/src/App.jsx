@@ -15,12 +15,10 @@ import AdminDashboard from "./Pages/admin/AdminDashboard";
 import Profile from "./Pages/Profile";
 import RepoDetail from "./Pages/RepoDetail";
 import NotFound from "./Pages/NotFound";
-
 function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/User" element={<User />} />
