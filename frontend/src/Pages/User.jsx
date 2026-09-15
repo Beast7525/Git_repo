@@ -2,6 +2,7 @@ import User_header from './User_header';
 import "./style/User.css";
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useLoading } from "../context/LoadingContext";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -26,8 +27,8 @@ const RESERVED_KEYWORDS = [
 function User() {
   const navigate = useNavigate();
   const { username: paramUsername } = useParams();
+  const { startLoading, stopLoading } = useLoading();
   const [repos, setRepos] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Retrieve logged-in user details
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
@@ -45,7 +46,7 @@ function User() {
   useEffect(() => {
     async function loadUserRepos() {
       try {
-        setLoading(true);
+        startLoading();
         const ownerEmail = currentUser.gmail || currentUser.email || "";
 
         const params = new URLSearchParams();
@@ -72,7 +73,7 @@ function User() {
       } catch (err) {
         console.error("Error loading user repos:", err);
       } finally {
-        setLoading(false);
+        stopLoading();
       }
     }
 
@@ -133,11 +134,7 @@ function User() {
             </button>
           </div>
 
-          {loading ? (
-            <div style={{ padding: "40px 0", textAlign: "center", color: "#87998d" }}>
-              Loading repositories from database...
-            </div>
-          ) : repos.length > 0 ? (
+          {repos.length > 0 ? (
             <div className="repo-grid-list">
               {repos.map((repo) => {
                 const ownerName = repo.owner || activeUsername;

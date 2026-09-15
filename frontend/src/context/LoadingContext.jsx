@@ -1,12 +1,19 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
 
 const LoadingContext = createContext();
 
 export const LoadingProvider = ({ children }) => {
-  const [loading, setLoading] = useState(false);
+  const [loadingCount, setLoadingCount] = useState(0);
 
-  const startLoading = () => setLoading(true);
-  const stopLoading = () => setLoading(false);
+  const startLoading = useCallback(() => {
+    setLoadingCount((prev) => prev + 1);
+  }, []);
+
+  const stopLoading = useCallback(() => {
+    setLoadingCount((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  const loading = loadingCount > 0;
 
   return (
     <LoadingContext.Provider value={{ loading, startLoading, stopLoading }}>

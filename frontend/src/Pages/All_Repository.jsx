@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/User.css";
+import { useLoading } from "../context/LoadingContext";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -13,12 +14,13 @@ const API_BASE_URL = (
 function All_Repository() {
   const navigate = useNavigate();
   const { username: paramUsername } = useParams();
+  const { startLoading, stopLoading } = useLoading();
   const [repos, setRepos] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadRepositories() {
       try {
+        startLoading();
         const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
         const activeUsername = paramUsername || localStorage.getItem("username") || currentUser.username || currentUser.name || "";
         const ownerEmail = currentUser.gmail || currentUser.email || "";
@@ -43,7 +45,7 @@ function All_Repository() {
       } catch (error) {
         console.error("Error loading repositories:", error);
       } finally {
-        setLoading(false);
+        stopLoading();
       }
     }
 
@@ -65,9 +67,7 @@ function All_Repository() {
           </button>
         </div>
 
-        {loading ? (
-          <div className="repository-message">Loading repositories...</div>
-        ) : repos.length === 0 ? (
+        {repos.length === 0 ? (
           <div className="empty-repository">
             <h3>No repositories found</h3>
             <p>You haven't created any repositories yet. Click 'New repository' to create one.</p>

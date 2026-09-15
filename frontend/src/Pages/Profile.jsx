@@ -4,6 +4,7 @@ import User_header from "./User_header";
 import NotFound from "./NotFound";
 import profileImg from "./assert/profile.png";
 import "./style/User.css";
+import { useLoading } from "../context/LoadingContext";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -23,21 +24,20 @@ const RESERVED_KEYWORDS = [
 function Profile() {
   const { username } = useParams();
   const navigate = useNavigate();
+  const { startLoading, stopLoading } = useLoading();
   const [userInfo, setUserInfo] = useState(null);
   const [repos, setRepos] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!username || RESERVED_KEYWORDS.includes(username.toLowerCase())) {
       setNotFound(true);
-      setLoading(false);
       return;
     }
 
     async function fetchProfileAndRepos() {
       try {
-        setLoading(true);
+        startLoading();
         setNotFound(false);
 
         // Fetch user profile info
@@ -104,7 +104,7 @@ function Profile() {
         console.error("Error loading profile:", error);
         setNotFound(true);
       } finally {
-        setLoading(false);
+        stopLoading();
       }
     }
 
@@ -156,11 +156,7 @@ function Profile() {
             </button>
           </div>
 
-          {loading ? (
-            <div style={{ padding: "40px 0", textAlign: "center", color: "#87998d" }}>
-              Loading user profile and repositories...
-            </div>
-          ) : repos.length > 0 ? (
+          {repos.length > 0 ? (
             <div className="repo-grid-list">
               {repos.map((repo) => {
                 const displayName = repo.name || repo.repositoryName || "untitled-repository";

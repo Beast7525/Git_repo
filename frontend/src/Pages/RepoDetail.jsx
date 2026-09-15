@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import User_header from "./User_header";
 import NotFound from "./NotFound";
 import "./style/GitHubRepo.css";
+import { useLoading } from "../context/LoadingContext";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -106,9 +107,9 @@ const RESERVED_KEYWORDS = [
 function RepoDetail() {
   const { username, repoName } = useParams();
   const navigate = useNavigate();
+  const { startLoading, stopLoading } = useLoading();
 
   const [repo, setRepo] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   
   // Interactive UI States
@@ -133,13 +134,12 @@ function RepoDetail() {
   useEffect(() => {
     if (!username || !repoName || RESERVED_KEYWORDS.includes(username.toLowerCase())) {
       setNotFound(true);
-      setLoading(false);
       return;
     }
 
     async function loadRepoDetails() {
       try {
-        setLoading(true);
+        startLoading();
         setNotFound(false);
 
         const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`);
@@ -154,7 +154,7 @@ function RepoDetail() {
         console.error("Error loading repository detail:", err);
         setNotFound(true);
       } finally {
-        setLoading(false);
+        stopLoading();
       }
     }
 
@@ -270,21 +270,14 @@ function RepoDetail() {
     );
   }
 
-  if (loading) {
-    return (
-      <main className="app gh-repo-page">
-        <User_header />
-        <div style={{ textAlign: "center", padding: "100px 0", color: "#8b949e" }}>
-          Loading GitHub repository interface...
-        </div>
-      </main>
-    );
+  if (!repo) {
+    return null;
   }
 
   const isPublic = repo.visibility === "public" || repo.visibility === "Public";
   const repoFiles = repo.files || [];
   const ownerName = repo.owner || username;
-  const cloneUrl = repo.remoteUrl || `https://gitrepo.com/${username}/${repo.name}.git`;
+  const cloneUrl = repo.remoteUrl || `https://git-repo-zlhn.onrender.com/${username}/${repo.name}.git`;
   const avatarUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${ownerName}`;
 
   return (
