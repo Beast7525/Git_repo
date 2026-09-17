@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema(
     passwordResetDailyWindow: { type: Date, default: Date.now },
     passwordResetMonthlyCount: { type: Number, default: 0 },
     passwordResetMonthlyWindow: { type: Date, default: Date.now },
+    status: { type: String, enum: ["Active", "Suspended", "Inactive"], default: "Active" },
+    suspensionReason: { type: String, default: "" },
+    suspendedUntil: { type: Date, default: null },
+    suspendedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -1,0 +1,211 @@
+const express = require("express");
+const crypto = require("crypto");
+const Group = require("../models/Group");
+const Repo = require("../models/Repo");
+const User = require("../models/User");
+
+const router = express.Router();
+
+// Helper to generate unique Group ID (e.g., GRP-7A9B3F)
+function generateUniqueGroupId() {
+  const hex = crypto.randomBytes(3).toString("hex").toUpperCase();
+  return `GRP-${hex}`;
+}
+
+// GET /api/groups/my-groups - Get groups for current user (hides unique groupId for non-admin)
+router.get("/my-groups", async (req, res) => {
+  try {
+    const username = typeof req.query.username === "string" ? req.query.username.trim() : "";
+    const email = typeof req.query.email === "string" ? req.query.email.trim() : "";
+
+    if (!username && !email) {
+      return res.status(400).json({ message: "Username or email is required to fetch user groups." });
+    }
+
+    const query = {
+      $or: [
+        { creator: new RegExp(`^${username}$`, "i") },
+        { creatorEmail: new RegExp(`^${email}$`, "i") },
+        { "members.username": new RegExp(`^${username}$`, "i") },
+        { "members.email": new RegExp(`^${email}$`, "i") }
+      ]
+    };
+
+    const groups = await Group.find(query).populate("repositories").sort({ createdAt: -1 });
+
+    // Privacy filter: Hide raw groupId for standard user view
+    const safeGroups = groups.map((g) => {
+      const obj = g.toObject();
+      delete obj.groupId; // Only visible to admin
+      return obj;
+    });
+
+    res.status(200).json(safeGroups);
+  } catch (error) {
+    console.error("Error fetching user groups:", error);
+    res.status(500).json({ message: "Error fetching user groups: " + error.message });
+  }
+});
+
+// POST /api/groups - Create a new team group
+router.post("/", async (req, res) => {
+  try {
+    const { name, description, creator, creatorEmail } = req.body;
+    const groupName = (name || "").trim();
+    const creatorUser = (creator || "").trim();
+
+    if (!groupName) {
+      return res.status(400).json({ message: "Group name is required." });
+    }
+    if (!creatorUser) {
+      return res.status(400).json({ message: "Creator username is required." });
+    }
+
+    const uniqueGroupId = generateUniqueGroupId();
+
+    const newGroup = new Group({
+      groupId: uniqueGroupId,
+      name: groupName,
+      description: description || "",
+      creator: creatorUser,
+      creatorEmail: creatorEmail || "",
+      members: [
+        {
+          username: creatorUser,
+          email: creatorEmail || "",
+          role: "creator",
+          joinedAt: new Date()
+        }
+      ],
+      repositories: []
+    });
+
+    await newGroup.save();
+
+    // Return safe object without groupId for standard creator response
+    const resObj = newGroup.toObject();
+    delete resObj.groupId;
+
+    res.status(201).json({ message: "Group created successfully", group: resObj });
+  } catch (error) {
+    console.error("Error creating group:", error);
+    res.status(500).json({ message: "Error creating group: " + error.message });
+  }
+});
+
+// POST /api/groups/:id/members - Add a member to a group (by username or email)
+router.post("/:id/members", async (req, res) => {
+  try {
+    const { username, email, identifier, role } = req.body;
+    const targetInput = (identifier || username || email || "").trim();
+
+    if (!targetInput) {
+      return res.status(400).json({ message: "Username or email is required to add a member." });
+    }
+
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    // Try finding registered user in database by username or email
+    const escapedInput = targetInput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const foundUser = await User.findOne({
+      $or: [
+        { username: new RegExp(`^${escapedInput}$`, "i") },
+        { gmail: new RegExp(`^${escapedInput}$`, "i") }
+      ]
+    });
+
+    const finalUsername = foundUser ? foundUser.username : (targetInput.includes("@") ? targetInput.split("@")[0] : targetInput);
+    const finalEmail = foundUser ? foundUser.gmail : (targetInput.includes("@") ? targetInput : (email || ""));
+
+    // Check if user is already a member
+    const existingMember = group.members.find(
+      (m) => m.username.toLowerCase() === finalUsername.toLowerCase() ||
+             (finalEmail && m.email && m.email.toLowerCase() === finalEmail.toLowerCase())
+    );
+
+    if (existingMember) {
+      return res.status(409).json({ message: `User "${finalUsername}" is already a member of this group.` });
+    }
+
+    const memberRole = role === "creator" ? "creator" : "editor";
+
+    group.members.push({
+      username: finalUsername,
+      email: finalEmail,
+      role: memberRole,
+      joinedAt: new Date()
+    });
+
+    await group.save();
+
+    const resObj = group.toObject();
+    delete resObj.groupId;
+
+    res.status(200).json({ message: `Member ${finalUsername} added successfully`, group: resObj });
+  } catch (error) {
+    console.error("Error adding member to group:", error);
+    res.status(500).json({ message: "Error adding member: " + error.message });
+  }
+});
+
+// PUT /api/groups/:id/members/:memberId/role - Update member role
+router.put("/:id/members/:memberId/role", async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!["creator", "editor"].includes(role)) {
+      return res.status(400).json({ message: "Invalid role. Must be 'creator' or 'editor'." });
+    }
+
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    const member = group.members.id(req.params.memberId);
+    if (!member) {
+      return res.status(404).json({ message: "Member not found in group." });
+    }
+
+    member.role = role;
+    await group.save();
+
+    const resObj = group.toObject();
+    delete resObj.groupId;
+
+    res.status(200).json({ message: "Member role updated successfully", group: resObj });
+  } catch (error) {
+    console.error("Error updating member role:", error);
+    res.status(500).json({ message: "Error updating member role: " + error.message });
+  }
+});
+
+// DELETE /api/groups/:id/members/:memberId - Remove member from group
+router.delete("/:id/members/:memberId", async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    const memberIndex = group.members.findIndex((m) => m._id.toString() === req.params.memberId);
+    if (memberIndex === -1) {
+      return res.status(404).json({ message: "Member not found in group." });
+    }
+
+    group.members.splice(memberIndex, 1);
+    await group.save();
+
+    const resObj = group.toObject();
+    delete resObj.groupId;
+
+    res.status(200).json({ message: "Member removed successfully", group: resObj });
+  } catch (error) {
+    console.error("Error removing group member:", error);
+    res.status(500).json({ message: "Error removing group member: " + error.message });
+  }
+});
+
+module.exports = router;

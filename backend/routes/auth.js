@@ -110,6 +110,22 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
+    // Check account suspension status
+    if (user.status === "Suspended") {
+      if (user.suspendedUntil && new Date(user.suspendedUntil) <= new Date()) {
+        // Suspension duration expired, auto-reactivate
+        user.status = "Active";
+        user.suspensionReason = "";
+        user.suspendedUntil = null;
+        await user.save();
+      } else {
+        const untilStr = user.suspendedUntil ? new Date(user.suspendedUntil).toLocaleDateString() : "further notice";
+        return res.status(403).json({
+          message: `Your account has been suspended until ${untilStr}. Reason: ${user.suspensionReason || "Violation of community rules"}`
+        });
+      }
+    }
+
     res.status(200).json({
       message: "Login successful",
       user: {
@@ -323,7 +339,7 @@ router.post("/google", async (req, res) => {
 router.get("/user/:username", async (req, res) => {
   try {
     const rawParam = req.params.username.trim();
-    const flexiblePattern = rawParam.replace(/[\s-_]+/g, "[\\s-_]?");
+    const flexiblePattern = rawParam.replace(/[\s\-_]+/g, "[\\s\\-_]?");
     const regex = new RegExp(`^${flexiblePattern}$`, "i");
 
     const user = await User.findOne({

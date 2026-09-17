@@ -21,7 +21,8 @@ app.get("/", (req, res) => {
       "/api/auth",
       "/api/admin",
       "/api/repos",
-      "/api/issues"
+      "/api/issues",
+      "/api/groups"
     ]
   });
 });
@@ -42,6 +43,9 @@ app.use("/api/issues", issueRoutes);
 
 const repoRoutes = require("./routes/repos");
 app.use("/api/repos", repoRoutes);
+
+const groupRoutes = require("./routes/groups");
+app.use("/api/groups", groupRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -11,6 +11,7 @@ import All_Repository from "./Pages/All_Repository";
 import Layout from "./Pages/Layout";
 import ForgotPassword from "./Pages/ForgotPassword";
 import Repository from "./Pages/Repostiory";
+import Teams from "./Pages/Teams";
 import AdminDashboard from "./Pages/admin/AdminDashboard";
 import Profile from "./Pages/Profile";
 import RepoDetail from "./Pages/RepoDetail";
@@ -29,6 +30,7 @@ function App() {
         <Route path="/Issue" element={<Issue />} />
         <Route path="/ForgotPassword" element={<ForgotPassword />} />
         <Route path="/Repository" element={<Repository />} />
+        <Route path="/teams" element={<Teams />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/All_Repository" element={<All_Repository />} />
 

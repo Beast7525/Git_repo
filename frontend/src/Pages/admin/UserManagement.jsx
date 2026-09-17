@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import {
   fetchUsersFromDB,
   saveUser,
-  toggleUserStatus,
-  deleteUser
+  suspendUserInDB,
+  deleteUserInDB
 } from "./adminDataService";
 import "./Admin.css";
 
@@ -14,11 +14,12 @@ export default function UserManagement({ showToast }) {
   const [statusFilter, setStatusFilter] = useState("All");
 
   // Load from DB
+  async function loadDBUsers() {
+    const dbUsers = await fetchUsersFromDB();
+    setUsers(dbUsers);
+  }
+
   useEffect(() => {
-    async function loadDBUsers() {
-      const dbUsers = await fetchUsersFromDB();
-      setUsers(dbUsers);
-    }
     loadDBUsers();
   }, []);
 
@@ -26,7 +27,8 @@ export default function UserManagement({ showToast }) {
   const [editingUser, setEditingUser] = useState(null);
   const [permissionsUser, setPermissionsUser] = useState(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
-  const [confirmStatusUser, setConfirmStatusUser] = useState(null);
+  const [suspendModalUser, setSuspendModalUser] = useState(null);
+  const [suspendForm, setSuspendForm] = useState({ reason: "", durationDays: 7 });
 
   // Form states
   const [userForm, setUserForm] = useState({
@@ -65,20 +67,51 @@ export default function UserManagement({ showToast }) {
     setEditingUser(null);
   }
 
-  function handleConfirmStatusToggle() {
-    if (!confirmStatusUser) return;
-    const updated = toggleUserStatus(confirmStatusUser.id);
-    setUsers(updated);
-    showToast(`Status updated for user ${confirmStatusUser.name}`);
-    setConfirmStatusUser(null);
+  async function handleConfirmSuspend(e) {
+    e.preventDefault();
+    if (!suspendModalUser) return;
+    if (!suspendForm.reason.trim()) {
+      showToast("Reason for suspension is required.");
+      return;
+    }
+
+    const success = await suspendUserInDB(
+      suspendModalUser.id,
+      "Suspended",
+      suspendForm.reason.trim(),
+      suspendForm.durationDays
+    );
+
+    if (success) {
+      showToast(`User ${suspendModalUser.name} suspended for ${suspendForm.durationDays} days. Email notice sent.`);
+      setSuspendModalUser(null);
+      setSuspendForm({ reason: "", durationDays: 7 });
+      loadDBUsers();
+    } else {
+      showToast("Failed to suspend user.");
+    }
   }
 
-  function handleConfirmDelete() {
+  async function handleReactivateUser(user) {
+    const success = await suspendUserInDB(user.id, "Active", "", 0);
+    if (success) {
+      showToast(`User ${user.name} has been reactivated.`);
+      loadDBUsers();
+    } else {
+      showToast("Failed to reactivate user.");
+    }
+  }
+
+  async function handleConfirmDelete() {
     if (!confirmDeleteUser) return;
-    const updated = deleteUser(confirmDeleteUser.id);
-    setUsers(updated);
-    showToast(`User ${confirmDeleteUser.name} deleted`);
-    setConfirmDeleteUser(null);
+    const success = await deleteUserInDB(confirmDeleteUser.id);
+    if (success) {
+      showToast(`User ${confirmDeleteUser.name} deleted successfully.`);
+      setConfirmDeleteUser(null);
+      loadDBUsers();
+    } else {
+      showToast("Failed to delete user.");
+    }
   }
 
   function handleSavePermissions(permList) {
@@ -94,7 +127,7 @@ export default function UserManagement({ showToast }) {
         <div>
           <h1 className="page-title">User Management</h1>
           <p className="page-subtitle">
-            Manage system administrators, developers, maintainers, roles, and permissions (Derived from Database)
+            Manage system administrators, developers, maintainers, roles, suspension policies, and email alerts
           </p>
         </div>
         <button className="btn-primary" onClick={handleOpenAddModal}>
@@ -142,7 +175,7 @@ export default function UserManagement({ showToast }) {
             <thead>
               <tr>
                 <th>User ID</th>
-                <th>Name & Avatar</th>
+                <th>Name &amp; Avatar</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>Account Status</th>
@@ -179,6 +212,11 @@ export default function UserManagement({ showToast }) {
                       <span className={`badge ${u.status === 'Active' ? 'badge-active' : u.status === 'Suspended' ? 'badge-suspended' : 'badge-pending'}`}>
                         {u.status}
                       </span>
+                      {u.status === "Suspended" && u.suspendedUntil && (
+                        <div style={{ fontSize: "0.72rem", color: "#f87171", marginTop: "4px" }}>
+                          Until: {u.suspendedUntil}
+                        </div>
+                      )}
                     </td>
                     <td style={{ color: "var(--admin-text-subtle)", fontSize: "0.82rem" }}>
                       {u.registrationDate}
@@ -199,16 +237,28 @@ export default function UserManagement({ showToast }) {
                         >
                           Permissions
                         </button>
-                        <button
-                          className="btn-sm-action"
-                          style={{
-                            background: u.status === "Active" ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)",
-                            color: u.status === "Active" ? "var(--admin-accent-amber)" : "var(--admin-accent-green)"
-                          }}
-                          onClick={() => setConfirmStatusUser(u)}
-                        >
-                          {u.status === "Active" ? "Deactivate" : "Activate"}
-                        </button>
+
+                        {u.status === "Suspended" ? (
+                          <button
+                            className="btn-sm-action"
+                            style={{ background: "rgba(16, 185, 129, 0.15)", color: "var(--admin-accent-green)" }}
+                            onClick={() => handleReactivateUser(u)}
+                          >
+                            Reactivate
+                          </button>
+                        ) : (
+                          <button
+                            className="btn-sm-action"
+                            style={{ background: "rgba(245, 158, 11, 0.15)", color: "var(--admin-accent-amber)" }}
+                            onClick={() => {
+                              setSuspendModalUser(u);
+                              setSuspendForm({ reason: "", durationDays: 7 });
+                            }}
+                          >
+                            Suspend
+                          </button>
+                        )}
+
                         <button
                           className="btn-sm-action"
                           style={{ background: "rgba(239, 68, 68, 0.15)", color: "var(--admin-accent-red)" }}
@@ -288,23 +338,56 @@ export default function UserManagement({ showToast }) {
         />
       )}
 
-      {/* Confirmation Dialog: Deactivate / Activate */}
-      {confirmStatusUser && (
+      {/* Suspend User Dialog with Period & Reason */}
+      {suspendModalUser && (
         <div className="modal-backdrop">
           <div className="modal-container">
             <div className="modal-header">
-              <h3 className="modal-title">Confirm Account Status Change</h3>
-              <button className="modal-close-btn" onClick={() => setConfirmStatusUser(null)}>&times;</button>
+              <h3 className="modal-title" style={{ color: "var(--admin-accent-amber)" }}>
+                Suspend User: {suspendModalUser.name}
+              </h3>
+              <button className="modal-close-btn" onClick={() => setSuspendModalUser(null)}>&times;</button>
             </div>
-            <div className="modal-body">
-              <p style={{ margin: 0 }}>
-                Are you sure you want to <strong>{confirmStatusUser.status === "Active" ? "Deactivate" : "Activate"}</strong> user <strong>{confirmStatusUser.name}</strong>?
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setConfirmStatusUser(null)}>Cancel</button>
-              <button className="btn-primary" onClick={handleConfirmStatusToggle}>Confirm</button>
-            </div>
+            <form onSubmit={handleConfirmSuspend}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Suspension Duration / Period</label>
+                  <select
+                    className="form-control"
+                    value={suspendForm.durationDays}
+                    onChange={(e) => setSuspendForm({ ...suspendForm, durationDays: e.target.value })}
+                  >
+                    <option value={1}>1 Day</option>
+                    <option value={3}>3 Days</option>
+                    <option value={7}>7 Days (1 Week)</option>
+                    <option value={14}>14 Days (2 Weeks)</option>
+                    <option value={30}>30 Days (1 Month)</option>
+                    <option value={90}>90 Days (3 Months)</option>
+                    <option value={365}>365 Days (1 Year)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Reason for Suspension (Mandatory - Sent to User Email)</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    required
+                    placeholder="Enter explicit reason for suspending this user..."
+                    value={suspendForm.reason}
+                    onChange={(e) => setSuspendForm({ ...suspendForm, reason: e.target.value })}
+                  />
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "var(--admin-text-subtle)", margin: 0 }}>
+                  ✉️ An automated email notification containing the suspension period and reason will be dispatched to <strong>{suspendModalUser.email}</strong>.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setSuspendModalUser(null)}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ background: "var(--admin-accent-amber)", border: "none" }}>
+                  Confirm &amp; Send Email Notice
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -319,7 +402,7 @@ export default function UserManagement({ showToast }) {
             </div>
             <div className="modal-body">
               <p style={{ margin: 0 }}>
-                Are you sure you want to delete account: <strong>{confirmDeleteUser.name}</strong>?
+                Are you sure you want to permanently delete user account: <strong>{confirmDeleteUser.name}</strong> ({confirmDeleteUser.email})?
               </p>
             </div>
             <div className="modal-footer">

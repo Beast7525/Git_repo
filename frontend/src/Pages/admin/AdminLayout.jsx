@@ -10,6 +10,7 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "users", label: "Users", icon: "👥" },
+    { id: "groups", label: "Groups & Teams", icon: "🔑" },
     { id: "repos", label: "Repositories", icon: "📦" },
     { id: "issues", label: "Issues", icon: "⚠️" },
     { id: "pull-requests", label: "Pull Requests", icon: "🔀" },

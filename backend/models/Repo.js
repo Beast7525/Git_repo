@@ -22,6 +22,9 @@ const repoSchema = new mongoose.Schema(
     ignoreGitignore: { type: Boolean, default: false }, // Option to ignore .gitignore
     owner: { type: String, default: "Admin" },
     ownerEmail: { type: String, default: "" },
+    group: { type: mongoose.Schema.Types.ObjectId, ref: "Group" },
+    groupId: { type: String, default: "" },
+    groupName: { type: String, default: "" },
     status: { type: String, default: "Active" },
     contributors: { type: Number, default: 1 },
     commits: { type: Number, default: 0 },
@@ -33,7 +36,9 @@ const repoSchema = new mongoose.Schema(
         path: String,
         size: Number,
         contentType: String,
-        b2FileName: String
+        b2FileName: String,
+        b2Url: String,
+        content: String
       }
     ],
     lastCommit: {

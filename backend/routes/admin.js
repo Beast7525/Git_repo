@@ -3,6 +3,8 @@ const User = require("../models/User");
 const Issue = require("../models/Issue");
 const Repo = require("../models/Repo");
 const PullRequest = require("../models/PullRequest");
+const Group = require("../models/Group");
+const { sendSuspensionEmail } = require("../mailer");
 
 const router = express.Router();
 
@@ -60,7 +62,9 @@ router.get("/users", async (req, res) => {
       name: u.username || u.name || "User",
       email: u.gmail || u.email || "",
       role: u.gmail === "gitrepo02@gmail.com" ? "Admin" : "Developer",
-      status: "Active",
+      status: u.status || "Active",
+      suspensionReason: u.suspensionReason || "",
+      suspendedUntil: u.suspendedUntil ? u.suspendedUntil.toISOString().split("T")[0] : null,
       registrationDate: u.createdAt ? u.createdAt.toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${u.username || u._id}`,
       permissions: u.gmail === "gitrepo02@gmail.com" ? ["Full System Admin", "Manage Users", "Manage Repos"] : ["Push Code", "Create Issues"]
@@ -68,6 +72,69 @@ router.get("/users", async (req, res) => {
     res.status(200).json(formatted);
   } catch (error) {
     res.status(500).json({ message: "Error fetching database users: " + error.message });
+  }
+});
+
+// PUT /api/admin/users/:id/suspend - Suspend or activate user with reason and email notice
+router.put("/users/:id/suspend", async (req, res) => {
+  try {
+    const { status, reason, durationDays } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (status === "Suspended") {
+      if (!reason || !reason.trim()) {
+        return res.status(400).json({ message: "Reason for suspension is required." });
+      }
+
+      const days = parseInt(durationDays, 10) || 7;
+      const untilDate = new Date();
+      untilDate.setDate(untilDate.getDate() + days);
+
+      user.status = "Suspended";
+      user.suspensionReason = reason.trim();
+      user.suspendedAt = new Date();
+      user.suspendedUntil = untilDate;
+
+      await user.save();
+
+      // Send email notification
+      await sendSuspensionEmail(user.gmail, user.username, user.suspensionReason, days, untilDate);
+
+      return res.status(200).json({
+        message: `User ${user.username} suspended for ${days} days. Notification email sent.`,
+        user
+      });
+    } else {
+      // Re-activate user
+      user.status = "Active";
+      user.suspensionReason = "";
+      user.suspendedAt = null;
+      user.suspendedUntil = null;
+      await user.save();
+
+      return res.status(200).json({ message: `User ${user.username} reactivated.`, user });
+    }
+  } catch (error) {
+    console.error("Error suspending user:", error);
+    res.status(500).json({ message: "Error updating user suspension: " + error.message });
+  }
+});
+
+// DELETE /api/admin/users/:id - Delete user from database
+router.delete("/users/:id", async (req, res) => {
+  try {
+    const deleted = await User.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    res.status(200).json({ message: `User ${deleted.username} deleted successfully.` });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ message: "Error deleting user: " + error.message });
   }
 });
 
@@ -176,6 +243,28 @@ router.get("/prs", async (req, res) => {
     })));
   } catch (error) {
     res.status(500).json({ message: "Error fetching PRs: " + error.message });
+  }
+});
+
+// GET /api/admin/groups - Expose groups with unique groupId visible ONLY for System Admins
+router.get("/groups", async (req, res) => {
+  try {
+    const groups = await Group.find().populate("repositories").sort({ createdAt: -1 });
+    const formatted = groups.map((g) => ({
+      id: g._id.toString(),
+      groupId: g.groupId, // UNIQUE GROUP ID (Visible ONLY to Admin)
+      name: g.name,
+      description: g.description,
+      creator: g.creator,
+      creatorEmail: g.creatorEmail,
+      membersCount: g.members ? g.members.length : 0,
+      members: g.members || [],
+      repositories: g.repositories || [],
+      creationDate: g.createdAt ? g.createdAt.toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
+    }));
+    res.status(200).json(formatted);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching admin groups: " + error.message });
   }
 });
 

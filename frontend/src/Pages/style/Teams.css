@@ -1,0 +1,339 @@
+.teams-page {
+  min-height: 100vh;
+  padding: 30px 24px 60px;
+  background: #0d1712;
+  color: #e7f1e5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.teams-header {
+  max-width: 1000px;
+  margin: 0 auto 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.teams-header-text h1 {
+  margin: 4px 0 8px;
+  font-size: 2.2rem;
+  font-weight: 600;
+  color: #f0fdf4;
+}
+
+.teams-header-text p {
+  margin: 0;
+  color: #9eafa3;
+  font-size: 0.95rem;
+}
+
+.teams-eyebrow {
+  color: #e4bd71;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.btn-create-team {
+  background: #a7dda6;
+  color: #0d1712;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-create-team:hover {
+  background: #bbf2ba;
+  transform: translateY(-1px);
+}
+
+.teams-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.team-card {
+  background: #15241b;
+  border: 1px solid rgba(167, 221, 166, 0.18);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s ease;
+}
+
+.team-card:hover {
+  border-color: rgba(167, 221, 166, 0.35);
+}
+
+.team-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.team-card-title {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.team-creator-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(228, 189, 113, 0.15);
+  color: #e4bd71;
+  border: 1px solid rgba(228, 189, 113, 0.3);
+  font-weight: 600;
+}
+
+.team-role-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.team-role-badge.creator {
+  background: rgba(167, 221, 166, 0.15);
+  color: #a7dda6;
+  border: 1px solid rgba(167, 221, 166, 0.3);
+}
+
+.team-role-badge.editor {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.team-description {
+  color: #9eafa3;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0 0 18px;
+  flex-grow: 1;
+}
+
+.team-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #748779;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 14px 0 8px;
+}
+
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.member-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 29, 20, 0.7);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 221, 166, 0.1);
+  font-size: 0.85rem;
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-name {
+  color: #e7f1e5;
+  font-weight: 600;
+}
+
+.team-repos-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.team-repo-chip {
+  background: rgba(167, 221, 166, 0.1);
+  border: 1px solid rgba(167, 221, 166, 0.2);
+  color: #a7dda6;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.team-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgba(167, 221, 166, 0.1);
+}
+
+.btn-add-member {
+  flex: 1;
+  background: rgba(167, 221, 166, 0.12);
+  color: #a7dda6;
+  border: 1px solid rgba(167, 221, 166, 0.25);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-add-member:hover {
+  background: rgba(167, 221, 166, 0.22);
+}
+
+/* Modal styling */
+.teams-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(5, 12, 8, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.teams-modal {
+  background: #15241b;
+  border: 1px solid rgba(167, 221, 166, 0.25);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  padding: 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.teams-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.teams-modal-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.teams-modal-close {
+  background: transparent;
+  border: none;
+  color: #9eafa3;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.teams-modal-close:hover {
+  color: #ffffff;
+}
+
+.teams-form-group {
+  margin-bottom: 18px;
+}
+
+.teams-form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #dcebd9;
+  margin-bottom: 6px;
+}
+
+.teams-form-group input,
+.teams-form-group select,
+.teams-form-group textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  background: #0d1712;
+  border: 1px solid rgba(167, 221, 166, 0.2);
+  border-radius: 8px;
+  color: #e7f1e5;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.teams-form-group input:focus,
+.teams-form-group select:focus,
+.teams-form-group textarea:focus {
+  border-color: #a7dda6;
+  box-shadow: 0 0 0 3px rgba(167, 221, 166, 0.12);
+}
+
+.teams-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #c5d7c2;
+  border: 1px solid rgba(167, 221, 166, 0.25);
+  padding: 9px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.empty-teams-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  background: #15241b;
+  border: 1px border-dashed rgba(167, 221, 166, 0.2);
+  border-radius: 16px;
+}
+
+.empty-teams-state h3 {
+  margin: 12px 0 6px;
+  font-size: 1.3rem;
+  color: #ffffff;
+}
+
+.empty-teams-state p {
+  color: #9eafa3;
+  margin: 0 0 20px;
+  font-size: 0.92rem;
+}

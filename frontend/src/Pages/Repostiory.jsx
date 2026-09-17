@@ -1,5 +1,5 @@
 import "./style/Repository.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 function Repository() {
@@ -8,12 +8,42 @@ function Repository() {
         name: "",
         description: "",
         visibility: "public",
+        groupId: "",
         initialize: true,
         ignoreGitignore: false, // "No .gitignore" option
     });
+    const [userGroups, setUserGroups] = useState([]);
     const [message, setMessage] = useState("");
     const [isError, setIsError] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const storedUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "Developer";
+    const storedEmail = currentUser.gmail || currentUser.email || "";
+    const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
+
+    useEffect(() => {
+        async function fetchGroups() {
+            try {
+                const params = new URLSearchParams();
+                if (storedUsername) params.append("username", storedUsername);
+                if (storedEmail) params.append("email", storedEmail);
+                const res = await fetch(`${API_BASE_URL}/api/groups/my-groups?${params.toString()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        setUserGroups(data);
+                        if (data.length > 0 && !form.groupId) {
+                            setForm((f) => ({ ...f, groupId: data[0]._id }));
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching user groups:", err);
+            }
+        }
+        fetchGroups();
+    }, [storedUsername, storedEmail]);
 
     function handleChange(event) {
         const { name, value, type, checked } = event.target;
@@ -31,18 +61,13 @@ function Repository() {
         setMessage("");
         setIsError(false);
         const repoName = form.name.trim();
-        const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
-
-        // Get currently logged in user info dynamically
-        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-        const storedUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "Developer";
-        const storedEmail = currentUser.gmail || currentUser.email || "";
 
         const payload = {
             repositoryName: repoName,
             name: repoName,
             description: form.description,
             visibility: form.visibility,
+            groupId: form.visibility === "Team Member" ? form.groupId : "",
             ignoreGitignore: form.ignoreGitignore,
             owner: storedUsername,
             ownerEmail: storedEmail,
@@ -127,6 +152,39 @@ function Repository() {
                             <span><strong>Team Member</strong><small>Only team members can see this repository.</small></span>
                         </label>
                     </fieldset>
+
+                    {form.visibility === "Team Member" && (
+                        <div style={{ marginBottom: "20px", background: "rgba(15, 29, 20, 0.7)", padding: "16px", borderRadius: "10px", border: "1px solid rgba(167, 221, 166, 0.2)" }}>
+                            <label htmlFor="select-group" style={{ marginBottom: "8px", color: "#a7dda6" }}>Select Team / Joined Group</label>
+                            {userGroups.length > 0 ? (
+                                <select
+                                    id="select-group"
+                                    name="groupId"
+                                    value={form.groupId}
+                                    onChange={handleChange}
+                                    style={{
+                                        width: "100%",
+                                        padding: "10px 12px",
+                                        background: "#0f1d14",
+                                        color: "#e7f1e5",
+                                        border: "1px solid rgba(167, 221, 166, 0.3)",
+                                        borderRadius: "8px",
+                                        fontSize: "0.9rem"
+                                    }}
+                                >
+                                    {userGroups.map((g) => (
+                                        <option key={g._id} value={g._id}>
+                                            👥 {g.name} ({g.members ? g.members.length : 1} members)
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <p style={{ margin: "6px 0 0", color: "#e4bd71", fontSize: "0.85rem" }}>
+                                    ⚠️ No joined groups found. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={() => navigate("/teams")}>Create a team group first</span>.
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <label className="checkbox-option">
                         <input type="checkbox" name="initialize" checked={form.initialize} onChange={handleChange} />

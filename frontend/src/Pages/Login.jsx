@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./Login.css";
 import ForgotPassword from "./ForgotPassword";
 import { isAdminCredentials } from "../auth/adminAuth";
+import { useLoading } from "../context/LoadingContext";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 const API_URL = `${API_BASE_URL}/api/auth`;
@@ -16,12 +17,14 @@ function Login() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
+  const { startLoading, stopLoading, loading } = useLoading();
 
   // =========================
   // LOGIN
   // =========================
   const handleLogin = async () => {
     try {
+      startLoading();
       setError("");
 
       if (isAdminCredentials(email, password)) {
@@ -70,6 +73,8 @@ function Login() {
 
     } catch (err) {
       setError("Network error: " + err.message);
+    } finally {
+      stopLoading();
     }
   };
 
@@ -88,6 +93,7 @@ function Login() {
     }
 
     try {
+      startLoading();
       setError("");
 
       const response = await fetch(`${API_URL}/signup`, {
@@ -122,6 +128,8 @@ function Login() {
 
     } catch (err) {
       setError("Network error: " + err.message);
+    } finally {
+      stopLoading();
     }
   };
 
@@ -183,12 +191,12 @@ function Login() {
           </p>
         )}
 
-        {/* Login / Register Button */}
         <button
           className="login-btn"
+          disabled={loading}
           onClick={isLogin ? handleLogin : handleRegister}
         >
-          {isLogin ? "Login" : "Register"}
+          {loading ? (isLogin ? "Logging in..." : "Registering...") : (isLogin ? "Login" : "Register")}
         </button>
 
         {/* Switch Login / Register */}

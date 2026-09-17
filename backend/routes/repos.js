@@ -1,7 +1,10 @@
 const express = require("express");
+const fs = require("fs/promises");
+const path = require("path");
 const Repo = require("../models/Repo");
 const User = require("../models/User");
-const { initializeRepository } = require("../gitRepositoryService");
+const Group = require("../models/Group");
+const { initializeRepository, commitFileChange } = require("../gitRepositoryService");
 
 const router = express.Router();
 
@@ -12,11 +15,11 @@ function escapeRegex(value) {
 function flexibleIdentityRegex(value) {
   const parts = String(value || "")
     .trim()
-    .split(/[\s_-]+/)
+    .split(/[\s\-_]+/)
     .filter(Boolean)
     .map(escapeRegex);
 
-  return parts.length ? new RegExp(`^${parts.join("[\\s_-]+")}$`, "i") : null;
+  return parts.length ? new RegExp(`^${parts.join("[\\s\\-_]+")}$`, "i") : null;
 }
 
 // GET /api/repos
@@ -45,6 +48,35 @@ router.get("/", async (req, res) => {
           conditions.push({ ownerEmail: new RegExp(`^${escapedMatchedEmail}$`, "i") });
         }
       }
+
+      // Check for user's groups to include team repositories!
+      const groupSearchConditions = [];
+      if (owner) {
+        const ownerRegex = flexibleIdentityRegex(owner);
+        if (ownerRegex) {
+          groupSearchConditions.push({ creator: ownerRegex });
+          groupSearchConditions.push({ "members.username": ownerRegex });
+        }
+      }
+      if (ownerEmail) {
+        const escapedEmail = escapeRegex(ownerEmail);
+        groupSearchConditions.push({ creatorEmail: new RegExp(`^${escapedEmail}$`, "i") });
+        groupSearchConditions.push({ "members.email": new RegExp(`^${escapedEmail}$`, "i") });
+      }
+
+      if (groupSearchConditions.length > 0) {
+        const userGroups = await Group.find({ $or: groupSearchConditions });
+        if (userGroups.length > 0) {
+          const groupObjectIds = userGroups.map(g => g._id);
+          const groupRepoIds = userGroups.flatMap(g => g.repositories || []).filter(Boolean);
+
+          conditions.push({ group: { $in: groupObjectIds } });
+          if (groupRepoIds.length > 0) {
+            conditions.push({ _id: { $in: groupRepoIds } });
+          }
+        }
+      }
+
       filter = { $or: conditions };
     }
 
@@ -58,7 +90,7 @@ router.get("/", async (req, res) => {
 // POST /api/repos
 router.post("/", async (req, res) => {
   try {
-    const { repositoryName, name, description, visibility, ignoreGitignore, owner, ownerEmail } = req.body;
+    const { repositoryName, name, description, visibility, ignoreGitignore, owner, ownerEmail, groupId } = req.body;
     const finalRepoName = (repositoryName || name || "").trim();
 
     if (!finalRepoName) {
@@ -76,6 +108,16 @@ router.post("/", async (req, res) => {
       return res.status(409).json({ message: "Repository name already exists. Please choose a unique name." });
     }
 
+    let groupRef = null;
+    let groupNameStr = "";
+    if (groupId) {
+      const groupDoc = await Group.findById(groupId).catch(() => null);
+      if (groupDoc) {
+        groupRef = groupDoc._id;
+        groupNameStr = groupDoc.name;
+      }
+    }
+
     const newRepo = new Repo({
       repositoryName: finalRepoName,
       name: finalRepoName,
@@ -84,12 +126,22 @@ router.post("/", async (req, res) => {
       ignoreGitignore: !!ignoreGitignore,
       owner: owner || "Admin",
       ownerEmail: ownerEmail || "",
+      group: groupRef,
+      groupId: groupId || "",
+      groupName: groupNameStr,
       contributors: 1,
       commits: 0,
       status: "Active"
     });
 
     await newRepo.save();
+
+    if (groupRef) {
+      await Group.findByIdAndUpdate(groupRef, {
+        $addToSet: { repositories: newRepo._id }
+      });
+    }
+
     res.status(201).json({ message: "Repository created successfully", repo: newRepo });
   } catch (error) {
     console.error("Error creating repository:", error);
@@ -301,6 +353,396 @@ router.get("/find/:owner/:repoName", async (req, res) => {
   } catch (error) {
     console.error("Error finding repository:", error);
     res.status(500).json({ message: "Error fetching repository: " + error.message });
+  }
+});
+
+// GET /api/repos/find/:owner/:repoName/file-content - Get raw text content of a repository file
+router.get("/find/:owner/:repoName/file-content", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const filePath = typeof req.query.filePath === "string" ? req.query.filePath.trim() : "";
+
+    if (!filePath) {
+      return res.status(400).json({ message: "filePath is required" });
+    }
+
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        {
+          $or: [
+            { name: repoRegex },
+            { repositoryName: repoRegex }
+          ]
+        }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found" });
+    }
+
+    // 1. Find target file in repo.files metadata
+    const targetFile = (repo.files || []).find(
+      (f) => f.path === filePath || f.b2FileName === filePath || (f.path && f.path.toLowerCase().endsWith(filePath.toLowerCase()))
+    );
+
+    // 2. Check if file text content is stored directly in MongoDB document
+    if (targetFile && targetFile.content) {
+      return res.status(200).json({ content: targetFile.content, filePath });
+    }
+
+    // 3. Check local disk storagePath
+    if (repo.storagePath) {
+      const safePath = path.normalize(filePath).replace(/^(\.\.[\/\\])+/, "");
+      const fullPath = path.resolve(repo.storagePath, safePath);
+
+      if (fullPath.startsWith(path.resolve(repo.storagePath))) {
+        try {
+          const content = await fs.readFile(fullPath, "utf-8");
+          return res.status(200).json({ content, filePath });
+        } catch (err) {
+          // File not found locally
+        }
+      }
+    }
+
+    // 4. Try Backblaze B2 download using b2.downloadFileByName
+    if (targetFile?.b2FileName || targetFile?.b2Url) {
+      try {
+        await authorizeB2();
+        const bucketName = process.env.B2_BUCKET_NAME || "GitRepo";
+        const fileNameToFetch = targetFile.b2FileName || targetFile.path;
+
+        const b2Response = await b2.downloadFileByName({
+          bucketName: bucketName,
+          fileName: fileNameToFetch,
+          responseType: "text"
+        });
+
+        if (b2Response && b2Response.data) {
+          const content = typeof b2Response.data === "string" ? b2Response.data : JSON.stringify(b2Response.data, null, 2);
+          return res.status(200).json({ content, filePath });
+        }
+      } catch (b2Err) {
+        console.warn("b2.downloadFileByName notice:", b2Err.message);
+
+        if (targetFile?.b2Url) {
+          try {
+            const rawRes = await fetch(targetFile.b2Url);
+            if (rawRes.ok) {
+              const content = await rawRes.text();
+              return res.status(200).json({ content, filePath });
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    // 5. Default Fallbacks for common repository files (.gitignore, README.md, etc.)
+    const cleanFileName = filePath.toLowerCase().split("/").pop();
+    if (cleanFileName === ".gitignore") {
+      const defaultGitignore = `# Node dependencies\nnode_modules/\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\n\n# Environment variables\n.env\n.env.local\n.env.development.local\n.env.production.local\n\n# Build outputs\ndist/\nbuild/\n*.log`;
+      return res.status(200).json({ content: defaultGitignore, filePath });
+    }
+
+    if (cleanFileName === "readme.md" || cleanFileName === "readme") {
+      const defaultReadme = `# ${repo.name || repo.repositoryName}\n\n${repo.description || "Welcome to your repository on GitRepo."}\n\n## Getting Started\n\n- Main Branch: \`${repo.defaultBranch || "main"}\`\n- Visibility: \`${repo.visibility || "public"}\``;
+      return res.status(200).json({ content: defaultReadme, filePath });
+    }
+
+    if (targetFile) {
+      return res.status(200).json({
+        content: `// File: ${targetFile.path || filePath}\n// Size: ${targetFile.size || 0} bytes\n// Status: Registered in repository metadata.`,
+        filePath
+      });
+    }
+
+    return res.status(404).json({ message: "File content not found or unreadable." });
+  } catch (error) {
+    console.error("Error reading file content:", error);
+    res.status(500).json({ message: "Error reading file content: " + error.message });
+  }
+});
+
+// PUT /api/repos/find/:owner/:repoName/file-content - Edit file content and commit changes
+router.put("/find/:owner/:repoName/file-content", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { filePath, content, message } = req.body || {};
+    const trimmedPath = typeof filePath === "string" ? filePath.trim() : "";
+    const commitMessage = (typeof message === "string" ? message : "").trim() || "Update file via editor";
+
+    if (!trimmedPath) {
+      return res.status(400).json({ message: "filePath is required" });
+    }
+    if (typeof content !== "string") {
+      return res.status(400).json({ message: "content must be a string" });
+    }
+
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        {
+          $or: [
+            { name: repoRegex },
+            { repositoryName: repoRegex }
+          ]
+        }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found" });
+    }
+
+    const targetFile = (repo.files || []).find(
+      (f) => f.path === trimmedPath || f.b2FileName === trimmedPath || (f.path && f.path.toLowerCase().endsWith(trimmedPath.toLowerCase()))
+    );
+
+    if (!targetFile) {
+      return res.status(404).json({ message: "File not found in repository." });
+    }
+
+    // 1. Always persist the latest content in MongoDB so reads return the edited version
+    const byteLength = Buffer.byteLength(content, "utf-8");
+    targetFile.content = content;
+    targetFile.size = byteLength;
+
+    // 2. Overwrite the object on Backblaze B2 (keeps the same fileName)
+    if (targetFile.b2FileName) {
+      try {
+        await authorizeB2();
+        const bucketName = process.env.B2_BUCKET_NAME || "GitRepo";
+        const bucketRes = await b2.getBucket({ bucketName });
+        const bucketId = bucketRes.data?.buckets?.[0]?.bucketId;
+        if (bucketId) {
+          const uploadUrlRes = await b2.getUploadUrl({ bucketId });
+          const { uploadUrl, authorizationToken } = uploadUrlRes.data;
+          await b2.uploadFile({
+            uploadUrl,
+            uploadAuthToken: authorizationToken,
+            fileName: targetFile.b2FileName,
+            data: Buffer.from(content, "utf-8"),
+          });
+          targetFile.b2Url = `https://f000.backblazeb2.com/file/${bucketName}/${targetFile.b2FileName}`;
+        }
+      } catch (b2Err) {
+        console.warn("B2 update skipped:", b2Err.message);
+      }
+    }
+
+    // 3. If the repo has a local git checkout, write the file and create a real commit
+    let commitHash;
+    if (repo.storagePath) {
+      try {
+        const result = await commitFileChange(repo.storagePath, targetFile.path || trimmedPath, content, commitMessage);
+        commitHash = result.hash;
+        repo.lastCommit = {
+          hash: result.hash,
+          message: commitMessage,
+          branch: repo.defaultBranch || "main",
+          committedAt: result.committedAt
+        };
+      } catch (gitErr) {
+        console.warn("Local git commit skipped:", gitErr.message);
+      }
+    }
+
+    repo.commits = (repo.commits || 0) + 1;
+    repo.lastCommit = repo.lastCommit || {
+      hash: commitHash || Math.random().toString(36).substring(2, 9),
+      message: commitMessage,
+      branch: repo.defaultBranch || "main",
+      committedAt: new Date()
+    };
+
+    await repo.save();
+
+    res.status(200).json({
+      message: "File updated and committed successfully.",
+      repo
+    });
+  } catch (error) {
+    console.error("Error updating file content:", error);
+    res.status(500).json({ message: "Error updating file content: " + error.message });
+  }
+});
+
+// PUT /api/repos/find/:owner/:repoName/settings - Update repo settings (Name, Visibility, Group, Description)
+router.put("/find/:owner/:repoName/settings", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { newName, visibility, groupId, description } = req.body;
+
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        {
+          $or: [
+            { name: repoRegex },
+            { repositoryName: repoRegex }
+          ]
+        }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    // Rename check
+    if (newName && newName.trim().toLowerCase() !== repo.name.toLowerCase()) {
+      const trimmedNewName = newName.trim();
+      const existing = await Repo.findOne({
+        $or: [
+          { name: new RegExp(`^${escapeRegex(trimmedNewName)}$`, "i") },
+          { repositoryName: new RegExp(`^${escapeRegex(trimmedNewName)}$`, "i") }
+        ],
+        _id: { $ne: repo._id }
+      });
+
+      if (existing) {
+        return res.status(409).json({ message: "A repository with that name already exists." });
+      }
+
+      repo.name = trimmedNewName;
+      repo.repositoryName = trimmedNewName;
+    }
+
+    if (description !== undefined) {
+      repo.description = description.trim();
+    }
+
+    if (visibility) {
+      repo.visibility = visibility;
+    }
+
+    // Handle group association update
+    if (groupId !== undefined) {
+      // Remove repo from previous group if changed
+      if (repo.group && repo.group.toString() !== groupId) {
+        await Group.findByIdAndUpdate(repo.group, {
+          $pull: { repositories: repo._id }
+        });
+      }
+
+      if (groupId) {
+        const groupDoc = await Group.findById(groupId).catch(() => null);
+        if (groupDoc) {
+          repo.group = groupDoc._id;
+          repo.groupId = groupDoc._id.toString();
+          repo.groupName = groupDoc.name;
+
+          await Group.findByIdAndUpdate(groupDoc._id, {
+            $addToSet: { repositories: repo._id }
+          });
+        }
+      } else {
+        repo.group = null;
+        repo.groupId = "";
+        repo.groupName = "";
+      }
+    }
+
+    await repo.save();
+    res.status(200).json({ message: "Repository settings updated successfully.", repo });
+  } catch (error) {
+    console.error("Error updating repository settings:", error);
+    res.status(500).json({ message: "Error updating repository settings: " + error.message });
+  }
+});
+
+// DELETE /api/repos/find/:owner/:repoName - Delete repository
+router.delete("/find/:owner/:repoName", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        {
+          $or: [
+            { name: repoRegex },
+            { repositoryName: repoRegex }
+          ]
+        }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    // Remove from group if associated
+    if (repo.group) {
+      await Group.findByIdAndUpdate(repo.group, {
+        $pull: { repositories: repo._id }
+      });
+    }
+
+    await Repo.findByIdAndDelete(repo._id);
+
+    res.status(200).json({ message: `Repository "${repo.name}" deleted successfully.` });
+  } catch (error) {
+    console.error("Error deleting repository:", error);
+    res.status(500).json({ message: "Error deleting repository: " + error.message });
   }
 });
 

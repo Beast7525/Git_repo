@@ -27,6 +27,7 @@ function User_header(){
         <div className="user_info">
           <div className="details">
             <p onClick={() => navigate(`/${username}`)}>Home</p>
+            <p onClick={()=> navigate('/teams')}>Teams</p>
             <p onClick={()=> navigate('/Stars')}>Stars</p>
             <p onClick={()=> navigate('/Issue')}>Issues</p>
             <p>Pull Requests</p>

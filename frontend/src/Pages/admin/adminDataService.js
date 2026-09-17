@@ -205,23 +205,42 @@ export function saveUser(user) {
   return updated;
 }
 
-export function toggleUserStatus(userId) {
-  const users = getUsers();
-  const updated = users.map(u => {
-    if (u.id === userId) {
-      return { ...u, status: u.status === "Active" ? "Suspended" : "Active" };
-    }
-    return u;
-  });
-  setStoredData(STORAGE_KEYS.USERS, updated);
-  return updated;
+export async function suspendUserInDB(userId, status, reason, durationDays) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/users/${userId}/suspend`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, reason, durationDays })
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("Error suspending user in DB:", e);
+    return false;
+  }
 }
 
-export function deleteUser(userId) {
-  const users = getUsers();
-  const updated = users.filter(u => u.id !== userId);
-  setStoredData(STORAGE_KEYS.USERS, updated);
-  return updated;
+export async function deleteUserInDB(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: "DELETE"
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("Error deleting user in DB:", e);
+    return false;
+  }
+}
+
+export async function fetchGroupsFromDB() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/groups`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.error("Error fetching groups from DB:", e);
+  }
+  return [];
 }
 
 // --- REPOSITORY MANAGEMENT DB API ---

@@ -25,7 +25,7 @@ function Dashboard({ closeSidebar }) {
         <p onClick={() => { navigate('/Issue'); closeSidebar(); }}>All Issues</p>
         <p>All Pull Requests</p>
         <p onClick={() => { navigate('/All_Repository'); closeSidebar(); }}>All Repositories</p>
-        <p>Team Member</p>
+        <p onClick={() => { navigate('/teams'); closeSidebar(); }}>Team Member</p>
         <p onClick={() => { navigate('/User_Profile'); closeSidebar(); }}>Profile</p>
         <p onClick={() => { navigate('/'); closeSidebar(); }}>logout</p>
       </div>

@@ -101,6 +101,29 @@ async function uploadFilesToB2(repo, writtenFiles, repoDir) {
   }
 }
 
+async function commitFileChange(repoDir, filePath, content, message) {
+  const relativePath = safeRelativePath(filePath);
+  const absolutePath = path.resolve(repoDir, relativePath);
+
+  if (!absolutePath.startsWith(path.resolve(repoDir) + path.sep)) {
+    throw new Error(`Invalid upload path: ${relativePath}`);
+  }
+
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+  await fs.writeFile(absolutePath, Buffer.from(content || "", "utf-8"));
+
+  await runGit(["add", "-A"], repoDir);
+  await runGit(
+    ["-c", "user.name=Gitrepo", "-c", "user.email=gitrepo@example.com", "commit", "-m", message || "Update file"],
+    repoDir
+  );
+
+  const hash = await runGit(["rev-parse", "HEAD"], repoDir);
+  const committedAt = await runGit(["log", "-1", "--format=%cI"], repoDir);
+
+  return { hash: hash.trim(), committedAt: committedAt.trim() };
+}
+
 async function initializeRepository(repo, files, remoteUrl) {
   const repoDir = path.join(STORAGE_ROOT, String(repo._id), slugify(repo.repositoryName || repo.name));
   await fs.mkdir(repoDir, { recursive: true });
@@ -148,5 +171,6 @@ async function initializeRepository(repo, files, remoteUrl) {
 }
 
 module.exports = {
-  initializeRepository
+  initializeRepository,
+  commitFileChange
 };
