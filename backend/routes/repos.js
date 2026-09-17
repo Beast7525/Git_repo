@@ -5,6 +5,7 @@ const Repo = require("../models/Repo");
 const User = require("../models/User");
 const Group = require("../models/Group");
 const { initializeRepository, commitFileChange } = require("../gitRepositoryService");
+const { parseGitignore, isIgnored, isGitignoreFile, normalizeRelPath } = require("../gitignore");
 
 const router = express.Router();
 
@@ -202,7 +203,7 @@ const { b2, authorizeB2 } = require("../backblaze");
 router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
   try {
     const { owner, repoName } = req.params;
-    const { message } = req.body;
+    const { message } = req.body || {};
     const files = req.files || (req.file ? [req.file] : []);
 
     if (!files || files.length === 0) {
@@ -254,10 +255,41 @@ router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
     }
 
     repo.files = repo.files || [];
+
+    // --- .gitignore filtering ---
+    // Gather gitignore rules from all uploaded & stored .gitignore files
+    let gitignoreContent = "";
+    for (const f of files) {
+      const relName = normalizeRelPath(f.originalname || f.filename || f.path || "");
+      if (isGitignoreFile(relName) && Buffer.isBuffer(f.buffer)) {
+        gitignoreContent += "\n" + f.buffer.toString("utf-8");
+      }
+    }
+    const storedGitignoreFiles = (repo.files || []).filter((f) => isGitignoreFile(f.path) && typeof f.content === "string");
+    for (const sg of storedGitignoreFiles) {
+      gitignoreContent += "\n" + sg.content;
+    }
+
+    const customRules = parseGitignore(gitignoreContent);
+    const filesToUpload = [];
+    let ignoredCount = 0;
+
+    for (const f of files) {
+      const rel = normalizeRelPath(f.originalname || f.filename || f.path || "");
+      if (!rel) continue;
+      // Completely exclude .gitignore files themselves AND any files matched by .gitignore patterns
+      if (isGitignoreFile(rel) || (!repo.ignoreGitignore && isIgnored(rel, customRules))) {
+        ignoredCount++;
+        continue;
+      }
+      filesToUpload.push(f);
+    }
+
     let uploadedCount = 0;
 
-    for (const file of files) {
-      const fileName = file.originalname || file.filename || "file";
+    for (const file of filesToUpload) {
+      const fileName = file.originalname || file.filename || file.path || "file";
+      if (isGitignoreFile(fileName)) continue;
       const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_");
       const b2FileName = `repos/${repo._id}/${Date.now()}_${sanitizedFileName}`;
       let b2Url = "";
@@ -296,13 +328,32 @@ router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
       uploadedCount++;
     }
 
+    // Filter out .gitignore files themselves and ignored files from stored repo.files list
+    repo.files = (repo.files || []).filter(
+      (f) => !isGitignoreFile(f.path || "") && (repo.ignoreGitignore ? true : !isIgnored(f.path || "", customRules))
+    );
+
+    const commitHash = Math.random().toString(36).substring(2, 9);
+    const commitMsg = message && message.trim() ? message.trim() : `Uploaded ${uploadedCount} file${uploadedCount > 1 ? "s" : ""}`;
+    const authorName = owner || repo.owner || "Developer";
+
     repo.commits = (repo.commits || 0) + 1;
     repo.lastCommit = {
-      hash: Math.random().toString(36).substring(2, 9),
-      message: message || `Uploaded ${uploadedCount} file${uploadedCount > 1 ? "s" : ""} to Backblaze B2`,
+      hash: commitHash,
+      message: commitMsg,
       branch: repo.defaultBranch || "main",
       committedAt: new Date()
     };
+
+    repo.commitHistory = repo.commitHistory || [];
+    repo.commitHistory.unshift({
+      hash: commitHash,
+      message: commitMsg,
+      branch: repo.defaultBranch || "main",
+      author: authorName,
+      committedAt: new Date(),
+      snapshotFiles: JSON.parse(JSON.stringify(repo.files || []))
+    });
 
     await repo.save();
     res.status(200).json({ message: `Successfully uploaded ${uploadedCount} file(s) to Backblaze B2 cloud storage`, repo });
@@ -347,6 +398,40 @@ router.get("/find/:owner/:repoName", async (req, res) => {
 
     if (!repo) {
       return res.status(404).json({ message: "Repository not found" });
+    }
+
+    // Ensure full commitHistory timeline is preserved for the graph
+    repo.commitHistory = repo.commitHistory || [];
+
+    if (repo.lastCommit && repo.lastCommit.hash && !repo.commitHistory.some(c => c.hash === repo.lastCommit.hash)) {
+      repo.commitHistory.unshift({
+        hash: repo.lastCommit.hash,
+        message: repo.lastCommit.message || `Commit update for ${repo.name}`,
+        branch: repo.lastCommit.branch || repo.defaultBranch || "main",
+        author: repo.owner || "Developer",
+        committedAt: repo.lastCommit.committedAt || new Date(),
+        snapshotFiles: JSON.parse(JSON.stringify(repo.files || []))
+      });
+    }
+
+    const initialHash = "init_" + repo._id.toString().slice(-6);
+    if (!repo.commitHistory.some(c => c.hash === initialHash || (c.message && c.message.toLowerCase().includes("initial repository creation")))) {
+      repo.commitHistory.push({
+        hash: initialHash,
+        message: `Initial repository creation for ${repo.name || repo.repositoryName}`,
+        branch: repo.defaultBranch || "main",
+        author: repo.owner || "Developer",
+        committedAt: repo.createdAt || new Date(),
+        snapshotFiles: []
+      });
+      await repo.save().catch(err => console.warn("Repo commitHistory backfill save warning:", err.message));
+    }
+
+    // Filter out .gitignore files and ignored files from response
+    if (Array.isArray(repo.files)) {
+      repo.files = repo.files.filter(
+        (f) => !isGitignoreFile(f.path || "") && (repo.ignoreGitignore ? true : !isIgnored(f.path || ""))
+      );
     }
 
     res.status(200).json(repo);
@@ -738,11 +823,150 @@ router.delete("/find/:owner/:repoName", async (req, res) => {
     }
 
     await Repo.findByIdAndDelete(repo._id);
-
-    res.status(200).json({ message: `Repository "${repo.name}" deleted successfully.` });
+    res.status(200).json({ message: "Repository deleted successfully." });
   } catch (error) {
     console.error("Error deleting repository:", error);
     res.status(500).json({ message: "Error deleting repository: " + error.message });
+  }
+});
+
+// POST /api/repos/find/:owner/:repoName/revert - Revert repository to a specific commit & push to main
+router.post("/find/:owner/:repoName/revert", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { commitHash, author } = req.body;
+
+    if (!commitHash) {
+      return res.status(400).json({ message: "Commit hash is required to revert changes." });
+    }
+
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        {
+          $or: [
+            { name: repoRegex },
+            { repositoryName: repoRegex }
+          ]
+        }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    // Find targeted commit in history or generate snapshot
+    const targetCommit = (repo.commitHistory || []).find((c) => c.hash === commitHash);
+
+    // Create a new revert commit
+    const newRevertHash = Math.random().toString(36).substring(2, 9);
+    const revertMsg = `Revert to commit ${commitHash.slice(0, 7)}: ${targetCommit?.message || "Restored previous state"}`;
+    const newCommitObj = {
+      hash: newRevertHash,
+      message: revertMsg,
+      branch: repo.defaultBranch || "main",
+      author: author || owner || "Developer",
+      committedAt: new Date()
+    };
+
+    if (targetCommit?.snapshotFiles && Array.isArray(targetCommit.snapshotFiles)) {
+      repo.files = targetCommit.snapshotFiles;
+    }
+
+    repo.commits = (repo.commits || 0) + 1;
+    repo.lastCommit = {
+      hash: newRevertHash,
+      message: revertMsg,
+      branch: repo.defaultBranch || "main",
+      committedAt: new Date()
+    };
+
+    repo.commitHistory = repo.commitHistory || [];
+    repo.commitHistory.unshift({
+      ...newCommitObj,
+      snapshotFiles: repo.files
+    });
+
+    await repo.save();
+
+    res.status(200).json({
+      message: `Successfully reverted repository to ${commitHash.slice(0, 7)} and pushed to ${repo.defaultBranch || "main"}.`,
+      repo
+    });
+  } catch (error) {
+    console.error("Error reverting repository:", error);
+    res.status(500).json({ message: "Error reverting repository: " + error.message });
+  }
+});
+
+// POST /api/repos/find/:owner/:repoName/report - Report repository with reason
+router.post("/find/:owner/:repoName/report", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { reason, reportedBy, reporterEmail } = req.body || {};
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ message: "Reason for report is required." });
+    }
+
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        {
+          $or: [
+            { name: repoRegex },
+            { repositoryName: repoRegex }
+          ]
+        }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    repo.reports = repo.reports || [];
+    repo.reports.push({
+      reportedBy: reportedBy || "Anonymous User",
+      reporterEmail: reporterEmail || "",
+      reason: reason.trim(),
+      reportedAt: new Date()
+    });
+
+    await repo.save();
+    res.status(200).json({ message: "Repository has been reported successfully to administrators.", repo });
+  } catch (error) {
+    console.error("Error reporting repository:", error);
+    res.status(500).json({ message: "Error reporting repository: " + error.message });
   }
 });
 

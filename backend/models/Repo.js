@@ -47,14 +47,31 @@ const repoSchema = new mongoose.Schema(
       branch: String,
       committedAt: Date
     },
+    commitHistory: [
+      {
+        hash: String,
+        message: String,
+        branch: String,
+        author: String,
+        committedAt: { type: Date, default: Date.now },
+        snapshotFiles: Array
+      }
+    ],
     pushStatus: {
       type: String,
       enum: ["pending", "not_configured", "pushed", "failed"],
       default: "pending"
     },
-    pushMessage: { type: String, default: "" },
     stars: { type: Number, default: 0 },
-    forks: { type: Number, default: 0 }
+    forks: { type: Number, default: 0 },
+    reports: [
+      {
+        reportedBy: String,
+        reporterEmail: String,
+        reason: String,
+        reportedAt: { type: Date, default: Date.now }
+      }
+    ]
   },
   { timestamps: true }
 );

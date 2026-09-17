@@ -8,14 +8,14 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
   const navigate = useNavigate();
 
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "users", label: "Users", icon: "👥" },
-    { id: "groups", label: "Groups & Teams", icon: "🔑" },
-    { id: "repos", label: "Repositories", icon: "📦" },
-    { id: "issues", label: "Issues", icon: "⚠️" },
-    { id: "pull-requests", label: "Pull Requests", icon: "🔀" },
-    { id: "reports", label: "Reports & Monitoring", icon: "📈" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
+    { id: "dashboard", label: "Dashboard" },
+    { id: "users", label: "Users" },
+    { id: "groups", label: "Groups & Teams" },
+    { id: "repos", label: "Repositories" },
+    { id: "issues", label: "Issues" },
+    { id: "pull-requests", label: "Pull Requests" },
+    { id: "reports", label: "Reports & Monitoring" },
+    { id: "settings", label: "Settings" },
   ];
 
   function handleNavClick(tabId) {
@@ -57,7 +57,6 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
               className={`nav-item ${activeTab === item.id ? "active" : ""}`}
               onClick={() => handleNavClick(item.id)}
             >
-              <span className="nav-icon">{item.icon}</span>
               <span>{item.label}</span>
             </button>
           ))}
@@ -65,7 +64,6 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
 
         <div className="sidebar-footer">
           <button className="logout-nav-btn" onClick={() => setShowLogoutModal(true)}>
-            <span className="nav-icon">🚪</span>
             <span>Logout</span>
           </button>
         </div>
@@ -81,10 +79,9 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
               onClick={() => setMobileOpen(!mobileOpen)}
               title="Toggle Menu"
             >
-              ☰
+              =
             </button>
             <div className="header-search">
-              <span className="search-icon-inside">🔍</span>
               <input
                 type="text"
                 placeholder="Global search repos, users, issues..."

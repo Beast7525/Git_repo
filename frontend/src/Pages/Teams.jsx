@@ -18,7 +18,7 @@ export default function Teams() {
 
   // Form States
   const [newGroupForm, setNewGroupForm] = useState({ name: "", description: "" });
-  const [newMemberForm, setNewMemberForm] = useState({ username: "", email: "", role: "editor" });
+  const [newMemberForm, setNewMemberForm] = useState({ identifier: "", role: "editor" });
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
@@ -88,21 +88,31 @@ export default function Teams() {
   async function handleAddMember(e) {
     e.preventDefault();
     if (!selectedGroupForMember) return;
-    if (!newMemberForm.username.trim() && !newMemberForm.email.trim()) return;
+    const rawVal = (newMemberForm.identifier || "").trim();
+    if (!rawVal) return;
+
+    let usernameToSend = "";
+    let emailToSend = "";
+    if (rawVal.includes("@")) {
+      emailToSend = rawVal;
+      usernameToSend = rawVal.split("@")[0];
+    } else {
+      usernameToSend = rawVal;
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/groups/${selectedGroupForMember._id}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: newMemberForm.username.trim(),
-          email: newMemberForm.email.trim(),
+          username: usernameToSend,
+          email: emailToSend,
           role: newMemberForm.role
         })
       });
 
       if (res.ok) {
-        setNewMemberForm({ username: "", email: "", role: "editor" });
+        setNewMemberForm({ identifier: "", role: "editor" });
         setSelectedGroupForMember(null);
         loadUserGroups();
       } else {
@@ -156,7 +166,6 @@ export default function Teams() {
                     {(group.members || []).map((m, idx) => (
                       <div key={m._id || idx} className="member-item">
                         <div className="member-info">
-                          <span style={{ fontSize: "1rem" }}>👤</span>
                           <span className="member-name">{m.username || m.email}</span>
                         </div>
                         <span className={`team-role-badge ${m.role === 'creator' ? 'creator' : 'editor'}`}>
@@ -172,7 +181,7 @@ export default function Teams() {
                       <div className="team-repos-list">
                         {group.repositories.map((r) => (
                           <span key={r._id || r.name} className="team-repo-chip">
-                            📁 {r.name || r.repositoryName || "repo"}
+                            {r.name || r.repositoryName || "repo"}
                           </span>
                         ))}
                       </div>
@@ -196,7 +205,6 @@ export default function Teams() {
             })
           ) : (
             <div className="empty-teams-state">
-              <div style={{ fontSize: "2.5rem", marginBottom: "10px" }}>👥</div>
               <h3>No Joined Groups Yet</h3>
               <p>Create a group to start collaborating on shared repositories with your team.</p>
               <button className="btn-create-team" style={{ margin: "0 auto" }} onClick={() => setShowCreateModal(true)}>
@@ -262,15 +270,8 @@ export default function Teams() {
                   type="text"
                   required
                   placeholder="Enter username (e.g. alexander) or email (e.g. alex@tech.io)"
-                  value={newMemberForm.username || newMemberForm.email}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val.includes("@")) {
-                      setNewMemberForm({ ...newMemberForm, email: val, username: val.split("@")[0] });
-                    } else {
-                      setNewMemberForm({ ...newMemberForm, username: val, email: "" });
-                    }
-                  }}
+                  value={newMemberForm.identifier || ""}
+                  onChange={(e) => setNewMemberForm({ ...newMemberForm, identifier: e.target.value })}
                 />
                 <small style={{ color: "#748779", fontSize: "0.78rem", marginTop: "4px", display: "block" }}>
                   Provide either the member's registered username or their email address.

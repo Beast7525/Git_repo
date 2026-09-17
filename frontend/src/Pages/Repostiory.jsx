@@ -174,13 +174,13 @@ function Repository() {
                                 >
                                     {userGroups.map((g) => (
                                         <option key={g._id} value={g._id}>
-                                            👥 {g.name} ({g.members ? g.members.length : 1} members)
+                                            {g.name} ({g.members ? g.members.length : 1} members)
                                         </option>
                                     ))}
                                 </select>
                             ) : (
                                 <p style={{ margin: "6px 0 0", color: "#e4bd71", fontSize: "0.85rem" }}>
-                                    ⚠️ No joined groups found. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={() => navigate("/teams")}>Create a team group first</span>.
+                                    No joined groups found. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={() => navigate("/teams")}>Create a team group first</span>.
                                 </p>
                             )}
                         </div>

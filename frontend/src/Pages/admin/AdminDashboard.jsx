@@ -104,7 +104,6 @@ export default function AdminDashboard() {
             animation: "modalPop 0.2s ease"
           }}
         >
-          <span>✅</span>
           <span>{toastMessage}</span>
         </div>
       )}

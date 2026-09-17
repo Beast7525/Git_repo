@@ -54,7 +54,7 @@ export default function GroupManagement({ showToast }) {
           <table className="admin-table">
             <thead>
               <tr>
-                <th style={{ color: "#e4bd71" }}>Unique Group ID 🔑</th>
+                <th style={{ color: "#e4bd71" }}>Unique Group ID</th>
                 <th>Group Name</th>
                 <th>Creator / Owner</th>
                 <th>Members Count</th>
@@ -94,7 +94,7 @@ export default function GroupManagement({ showToast }) {
                       </span>
                     </td>
                     <td style={{ fontWeight: "600", color: "#ffffff" }}>{g.name}</td>
-                    <td>👤 {g.creator}</td>
+                    <td>{g.creator}</td>
                     <td>
                       <span className="badge badge-developer">{g.membersCount} members</span>
                     </td>

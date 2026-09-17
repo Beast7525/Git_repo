@@ -156,7 +156,7 @@ function User() {
                         </Link>
                       </h3>
                       <span className={`repo-badge ${repo.visibility === 'public' || repo.visibility === 'Public' ? 'public' : 'private'}`}>
-                        {repo.visibility === 'Team Member' ? '👥 Team Member' : (repo.visibility === 'public' || repo.visibility === 'Public' ? 'Public' : 'Private')}
+                        {repo.visibility === 'Team Member' ? 'Team Member' : (repo.visibility === 'public' || repo.visibility === 'Public' ? 'Public' : 'Private')}
                       </span>
                     </div>
 
@@ -165,19 +165,19 @@ function User() {
                     </p>
 
                     <div className="repo-card-meta">
-                      <span className="repo-owner">👤 Owner: <strong>{ownerName}</strong></span>
+                      <span className="repo-owner">Owner: <strong>{ownerName}</strong></span>
                       {repo.groupName && (
                         <span className="repo-gitignore-tag" style={{ background: "rgba(228, 189, 113, 0.15)", color: "#e4bd71", borderColor: "rgba(228, 189, 113, 0.3)" }}>
-                          👥 Group: <strong>{repo.groupName}</strong>
+                          Group: <strong>{repo.groupName}</strong>
                         </span>
                       )}
                       {repo.ignoreGitignore ? (
-                        <span className="repo-gitignore-tag no-gitignore">🚫 No .gitignore</span>
+                        <span className="repo-gitignore-tag no-gitignore">No .gitignore</span>
                       ) : (
-                        <span className="repo-gitignore-tag">📄 Standard .gitignore</span>
+                        <span className="repo-gitignore-tag">Standard .gitignore</span>
                       )}
                       <span className="repo-date">
-                        📅 {repo.creationDate || (repo.createdAt ? repo.createdAt.split('T')[0] : "Recently")}
+                        {repo.creationDate || (repo.createdAt ? repo.createdAt.split('T')[0] : "Recently")}
                       </span>
                     </div>
                   </div>

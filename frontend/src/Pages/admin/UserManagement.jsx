@@ -378,7 +378,7 @@ export default function UserManagement({ showToast }) {
                   />
                 </div>
                 <p style={{ fontSize: "0.82rem", color: "var(--admin-text-subtle)", margin: 0 }}>
-                  ✉️ An automated email notification containing the suspension period and reason will be dispatched to <strong>{suspendModalUser.email}</strong>.
+                  An automated email notification containing the suspension period and reason will be dispatched to <strong>{suspendModalUser.email}</strong>.
                 </p>
               </div>
               <div className="modal-footer">

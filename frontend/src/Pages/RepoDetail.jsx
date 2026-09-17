@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import JSZip from "jszip";
 import User_header from "./User_header";
 import NotFound from "./NotFound";
 import "./style/GitHubRepo.css";
@@ -96,6 +97,7 @@ const RESERVED_KEYWORDS = [
   "admin",
   "dashboard",
   "repository",
+  "teams",
   "stars",
   "issue",
   "forgotpassword",
@@ -115,112 +117,13 @@ function RepoDetail() {
   const [fileContent, setFileContent] = useState("");
   const [fileContentLoading, setFileContentLoading] = useState(false);
   const [fileContentError, setFileContentError] = useState("");
-  const [isEditingFile, setIsEditingFile] = useState(false);
-  const [editContent, setEditContent] = useState("");
-  const [editMessage, setEditMessage] = useState("");
-  const [savingFile, setSavingFile] = useState(false);
-  const [fileSaveError, setFileSaveError] = useState("");
-  const [fileSaveSuccess, setFileSaveSuccess] = useState("");
 
-  async function handleOpenFile(file) {
-    setSelectedFileForPreview(file);
-    setFileContent("");
-    setFileContentLoading(true);
-    setFileContentError("");
-    setIsEditingFile(false);
-    setEditContent("");
-    setEditMessage("");
-    setFileSaveError("");
-    setFileSaveSuccess("");
+  // Commit Graph & Revert States
+  const [selectedCommit, setSelectedCommit] = useState(null);
+  const [reverting, setReverting] = useState(false);
+  const [revertMessage, setRevertMessage] = useState("");
+  const [revertError, setRevertError] = useState(false);
 
-    const targetPath = file.path || file.b2FileName;
-
-    // 1. Try direct B2 URL fetch if available
-    if (file.b2Url) {
-      try {
-        const res = await fetch(file.b2Url);
-        if (res.ok) {
-          const text = await res.text();
-          setFileContent(text);
-          setFileContentLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.warn("Direct B2 fetch failed, trying backend fallback:", err);
-      }
-    }
-
-    // 2. Fallback to backend API endpoint
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-content?filePath=${encodeURIComponent(targetPath)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setFileContent(data.content || "");
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setFileContentError(errData.message || "Unable to load file content.");
-      }
-    } catch (err) {
-      console.error("Error fetching file content:", err);
-      setFileContentError("Failed to fetch file content from server.");
-    } finally {
-      setFileContentLoading(false);
-    }
-  }
-
-  function startEditingFile() {
-    setEditContent(fileContent);
-    setEditMessage("");
-    setFileSaveError("");
-    setFileSaveSuccess("");
-    setIsEditingFile(true);
-  }
-
-  function cancelEditingFile() {
-    setIsEditingFile(false);
-    setEditMessage("");
-    setFileSaveError("");
-    setFileSaveSuccess("");
-  }
-
-  async function handleCommitFileChange() {
-    const targetFile = selectedFileForPreview;
-    const targetPath = targetFile?.path || targetFile?.b2FileName;
-    if (!targetPath) return;
-
-    setSavingFile(true);
-    setFileSaveError("");
-    setFileSaveSuccess("");
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-content`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: targetPath, content: editContent, message: editMessage })
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || res.statusText);
-      }
-
-      setFileContent(editContent);
-      setRepo(data.repo);
-      const updatedFile = (data.repo?.files || []).find(
-        (f) => f.path === targetPath || f.b2FileName === targetPath
-      );
-      if (updatedFile) setSelectedFileForPreview(updatedFile);
-      setFileSaveSuccess(data.message || "File updated and committed successfully.");
-      setIsEditingFile(false);
-      setEditMessage("");
-    } catch (err) {
-      console.error("Error committing file changes:", err);
-      setFileSaveError(err.message || "Unable to commit file changes.");
-    } finally {
-      setSavingFile(false);
-    }
-  }
-  
   // Interactive UI States
   const [activeTab, setActiveTab] = useState("code");
   const [isStarred, setIsStarred] = useState(false);
@@ -249,10 +152,21 @@ function RepoDetail() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadError, setUploadError] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+
+  // Report Modal States
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reporting, setReporting] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
+  const [reportError, setReportError] = useState(false);
 
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
+
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const loggedInUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "Developer";
 
   useEffect(() => {
     if (!username || !repoName || RESERVED_KEYWORDS.includes(username.toLowerCase())) {
@@ -288,14 +202,12 @@ function RepoDetail() {
     }
 
     async function fetchUserGroups() {
-      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-      const storedUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
       const storedEmail = currentUser.gmail || currentUser.email || "";
-      if (!storedUsername && !storedEmail) return;
+      if (!loggedInUsername && !storedEmail) return;
 
       try {
         const params = new URLSearchParams();
-        if (storedUsername) params.append("username", storedUsername);
+        if (loggedInUsername) params.append("username", loggedInUsername);
         if (storedEmail) params.append("email", storedEmail);
         const res = await fetch(`${API_BASE_URL}/api/groups/my-groups?${params.toString()}`);
         if (res.ok) {
@@ -310,6 +222,31 @@ function RepoDetail() {
     loadRepoDetails();
     fetchUserGroups();
   }, [username, repoName]);
+
+  async function handleOpenFile(file) {
+    setSelectedFileForPreview(file);
+    setFileContent("");
+    setFileContentLoading(true);
+    setFileContentError("");
+
+    const targetPath = file.path || file.b2FileName;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-content?filePath=${encodeURIComponent(targetPath)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFileContent(data.content || "");
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setFileContentError(errData.message || "Unable to load file content.");
+      }
+    } catch (err) {
+      console.error("Error fetching file content:", err);
+      setFileContentError("Failed to fetch file content from server.");
+    } finally {
+      setFileContentLoading(false);
+    }
+  }
 
   async function handleSaveSettings(e) {
     e.preventDefault();
@@ -372,6 +309,35 @@ function RepoDetail() {
     }
   }
 
+  async function handleRevertCommit(commitHash) {
+    setReverting(true);
+    setRevertMessage("");
+    setRevertError(false);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/revert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commitHash, author: loggedInUsername })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || res.statusText);
+      }
+
+      setRepo(data.repo);
+      setRevertMessage(data.message || "Reverted changes successfully and pushed to main.");
+      setTimeout(() => setSelectedCommit(null), 1800);
+    } catch (err) {
+      console.error("Revert error:", err);
+      setRevertError(true);
+      setRevertMessage(err.message || "Failed to revert commit.");
+    } finally {
+      setReverting(false);
+    }
+  }
+
   // Handle Drag & Drop events
   function handleDragOver(e) {
     e.preventDefault();
@@ -396,8 +362,10 @@ function RepoDetail() {
         setFilesToUpload(droppedFiles);
         setUploadMessage("");
         setUploadError(false);
-        // Auto trigger upload or show ready status
-        executeFileUpload(droppedFiles, `Uploaded ${droppedFiles.length} file(s) via Drag & Drop`);
+        if (!commitMessage) {
+          setCommitMessage(`Add ${droppedFiles.length} file(s) via upload`);
+        }
+        setShowUploadModal(true);
       }
     } catch (err) {
       console.error("Error extracting dropped files:", err);
@@ -412,7 +380,10 @@ function RepoDetail() {
       setFilesToUpload(selectedFiles);
       setUploadMessage("");
       setUploadError(false);
-      executeFileUpload(selectedFiles, `Uploaded ${selectedFiles.length} file(s)`);
+      if (!commitMessage) {
+        setCommitMessage(`Add ${selectedFiles.length} file(s) via upload`);
+      }
+      setShowUploadModal(true);
     }
   }
 
@@ -421,6 +392,13 @@ function RepoDetail() {
     if (!filesArr || filesArr.length === 0) {
       setUploadError(true);
       setUploadMessage("Please select or drop files to upload.");
+      return;
+    }
+
+    const finalCommitMsg = (commitMessage || defaultMsg || "").trim();
+    if (!finalCommitMsg) {
+      setUploadError(true);
+      setUploadMessage("Commit message is required so this commit can be recorded in the graph and reverted if needed.");
       return;
     }
 
@@ -434,7 +412,7 @@ function RepoDetail() {
         const filePath = file.webkitRelativePath || file.name;
         formData.append("files", file, filePath);
       });
-      formData.append("message", commitMessage.trim() || defaultMsg || `Uploaded ${filesArr.length} file(s) to Backblaze B2`);
+      formData.append("message", finalCommitMsg);
 
       const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/upload`, {
         method: "POST",
@@ -450,7 +428,7 @@ function RepoDetail() {
       setFilesToUpload([]);
       setCommitMessage("");
       setUploadError(false);
-      setUploadMessage(data.message || `Successfully uploaded ${filesArr.length} file(s) to Backblaze B2 cloud storage!`);
+      setUploadMessage(data.message || `Successfully uploaded ${filesArr.length} file(s) and recorded commit.`);
       setTimeout(() => setShowUploadModal(false), 1500);
     } catch (error) {
       console.error("Upload error:", error);
@@ -461,6 +439,108 @@ function RepoDetail() {
     }
   }
 
+  async function handleDownloadZip() {
+    if (!repoFiles || repoFiles.length === 0) {
+      alert("No files in repository to download.");
+      return;
+    }
+    setDownloadingZip(true);
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder(`${repoName || "repository"}-main`);
+
+      for (const fileObj of repoFiles) {
+        const filePath = fileObj.path || "file";
+        if (typeof fileObj.content === "string") {
+          folder.file(filePath, fileObj.content);
+        } else if (fileObj.b2Url) {
+          try {
+            const resp = await fetch(fileObj.b2Url);
+            const blob = await resp.blob();
+            folder.file(filePath, blob);
+          } catch {
+            folder.file(filePath, `// File: ${filePath}`);
+          }
+        } else {
+          try {
+            const resp = await fetch(
+              `${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-content?filePath=${encodeURIComponent(filePath)}`
+            );
+            if (resp.ok) {
+              const data = await resp.json();
+              folder.file(filePath, data.content || "");
+            } else {
+              folder.file(filePath, `// File: ${filePath}`);
+            }
+          } catch {
+            folder.file(filePath, `// File: ${filePath}`);
+          }
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `${repoName || "repository"}-main.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error("Error creating ZIP download:", err);
+      alert("Error generating ZIP download: " + err.message);
+    } finally {
+      setDownloadingZip(false);
+    }
+  }
+
+  async function handleReportRepo(e) {
+    e.preventDefault();
+    if (!reportReason.trim()) {
+      setReportError(true);
+      setReportMessage("Please enter a valid reason for reporting this repository.");
+      return;
+    }
+
+    setReporting(true);
+    setReportMessage("");
+    setReportError(false);
+
+    try {
+      const currentUserObj = JSON.parse(localStorage.getItem("user") || "{}");
+      const reporterEmail = currentUserObj.gmail || currentUserObj.email || "";
+
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: reportReason.trim(),
+          reportedBy: loggedInUsername,
+          reporterEmail: reporterEmail
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setReportError(false);
+        setReportMessage(data.message || "Repository reported successfully.");
+        setReportReason("");
+        setTimeout(() => {
+          setShowReportModal(false);
+          setReportMessage("");
+        }, 1800);
+      } else {
+        setReportError(true);
+        setReportMessage(data.message || "Failed to report repository.");
+      }
+    } catch (err) {
+      setReportError(true);
+      setReportMessage("Error reporting repository: " + err.message);
+    } finally {
+      setReporting(false);
+    }
+  }
 
   function toggleStar() {
     if (isStarred) {
@@ -491,12 +571,41 @@ function RepoDetail() {
   const cloneUrl = repo.remoteUrl || `https://git-repo-zlhn.onrender.com/${username}/${repo.name}.git`;
   const avatarUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${ownerName}`;
 
+  // Synthesize history list for VS Code style Git Graph containing ALL previous commits
+  const rawHistory = (() => {
+    let history = Array.isArray(repo.commitHistory) && repo.commitHistory.length > 0 ? [...repo.commitHistory] : [];
+
+    // Make sure repo.lastCommit is included if present
+    if (repo.lastCommit && repo.lastCommit.hash && !history.some((c) => c.hash === repo.lastCommit.hash)) {
+      history.unshift({
+        hash: repo.lastCommit.hash,
+        message: repo.lastCommit.message || `Commit update for ${repo.name}`,
+        branch: repo.lastCommit.branch || repo.defaultBranch || "main",
+        author: ownerName,
+        committedAt: repo.lastCommit.committedAt || new Date()
+      });
+    }
+
+    // Make sure initial repository creation commit is at the base of the history list
+    const initialHash = "init_" + (repo._id ? repo._id.toString().slice(-6) : "001");
+    if (!history.some((c) => c.hash === initialHash || (c.message && c.message.toLowerCase().includes("initial repository creation")))) {
+      history.push({
+        hash: initialHash,
+        message: `Initial repository creation for ${repo.name || repoName}`,
+        branch: repo.defaultBranch || "main",
+        author: ownerName,
+        committedAt: repo.createdAt || new Date()
+      });
+    }
+
+    return history;
+  })();
+
   return (
     <main className="app gh-repo-page">
       <User_header />
 
-      
-      {/* Hidden file inputs for file and folder selections */}
+      {/* Hidden file inputs */}
       <input
         type="file"
         ref={fileInputRef}
@@ -539,10 +648,10 @@ function RepoDetail() {
                   {repo.description || "No description provided for this repository yet."}
                 </p>
                 <div className="gh-hero-chips">
-                  <span className="gh-chip">🌿 Branch: {repo.defaultBranch || "main"}</span>
-                  <span className="gh-chip">👥 {(repo.contributors || 1)} contributor(s)</span>
+                  <span className="gh-chip">Branch: {repo.defaultBranch || "main"}</span>
+                  <span className="gh-chip">{(repo.contributors || 1)} contributor(s)</span>
                   <span className="gh-chip">
-                    📦 ~{Math.max(1, Math.round(repoFiles.reduce((s, f) => s + (f.size || 0), 0) / 1024))} KB
+                    ~{Math.max(1, Math.round(repoFiles.reduce((s, f) => s + (f.size || 0), 0) / 1024))} KB
                   </span>
                   <span className="gh-chip">
                     {repo.lastCommit?.hash ? `Last commit ${repo.lastCommit.hash.slice(0, 7)}` : "Awaiting first commit"}
@@ -553,41 +662,44 @@ function RepoDetail() {
 
             <div className="gh-hero-actions">
               <button className="gh-btn" type="button" onClick={toggleStar}>
-                ⭐ <span>Star</span>
-                <span className="gh-btn-count">{starCount}</span>
+                Star <span className="gh-btn-count">{starCount}</span>
               </button>
 
               <button className="gh-btn gh-btn-primary" type="button" onClick={() => setShowUploadModal(true)}>
                 + Add File
               </button>
 
-              <div style={{ position: "relative" }}>
-                <button
-                  className="gh-btn gh-btn-green"
-                  type="button"
-                  onClick={() => setShowCodeDropdown(!showCodeDropdown)}
-                >
-                  &lt;/&gt; Clone <span>▼</span>
-                </button>
+              <button
+                className="gh-btn gh-btn-green"
+                type="button"
+                onClick={handleDownloadZip}
+                disabled={downloadingZip}
+                title="Download repository as a ZIP archive"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: "6px" }}>
+                  <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                  <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                </svg>
+                {downloadingZip ? "Zipping..." : "Download ZIP"}
+              </button>
 
-                {showCodeDropdown && (
-                  <div className="gh-clone-pop">
-                    <div style={{ fontWeight: 600, marginBottom: "8px" }}>Clone Repository</div>
-                    <div className="gh-clone-url">{cloneUrl}</div>
-                    <button
-                      className="gh-btn"
-                      style={{ width: "100%", marginTop: "10px", justifyContent: "center" }}
-                      onClick={() => {
-                        navigator.clipboard.writeText(`git clone ${cloneUrl}`);
-                        alert("Clone command copied to clipboard!");
-                        setShowCodeDropdown(false);
-                      }}
-                    >
-                      📋 Copy HTTPS URL
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button
+                className="gh-btn"
+                type="button"
+                onClick={() => {
+                  setReportReason("");
+                  setReportMessage("");
+                  setReportError(false);
+                  setShowReportModal(true);
+                }}
+                style={{ borderColor: "rgba(239, 68, 68, 0.4)", color: "#ef4444" }}
+                title="Report this repository to administrators"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: "6px" }}>
+                  <path d="M14.778.085A.5.5 0 0 1 15 .5V8a.5.5 0 0 1-.314.464L14.5 8.5l-1.424-.475a4.743 4.743 0 0 0-2.868.109l-1.939.776a6.243 6.243 0 0 1-3.772.143L2 8.35v6.15a.5.5 0 0 1-1 0V.5a.5.5 0 0 1 1 0v.65l2.497.832a4.743 4.743 0 0 0 2.868-.108l1.94-.776a6.243 6.243 0 0 1 3.772-.143L14.5.15a.5.5 0 0 1 .278-.065z"/>
+                </svg>
+                Report
+              </button>
             </div>
           </section>
 
@@ -598,21 +710,98 @@ function RepoDetail() {
               onClick={() => setActiveTab("code")}
               type="button"
             >
-              &lt;/&gt; Code
+              Code
+            </button>
+            <button
+              className={`gh-btn ${activeTab === "commits" ? "gh-btn-primary" : ""}`}
+              onClick={() => setActiveTab("commits")}
+              type="button"
+            >
+              Commit Graph
             </button>
             <button
               className={`gh-btn ${activeTab === "settings" ? "gh-btn-primary" : ""}`}
               onClick={() => setActiveTab("settings")}
               type="button"
             >
-              ⚙️ Settings
+              Settings
             </button>
           </div>
 
-          {activeTab === "settings" ? (
+          {activeTab === "commits" ? (
+            /* VS Code Style Git Commit Graph View */
+            <section className="gh-card" style={{ padding: "28px", maxWidth: "900px", margin: "0 auto 40px" }}>
+              <div style={{ marginBottom: "20px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "12px" }}>
+                <h2 className="gh-card-title" style={{ fontSize: "1.4rem" }}>Git Commit Graph &amp; History</h2>
+                <p className="gh-card-sub">VS Code style commit timeline. Click any commit node to inspect details or revert changes.</p>
+              </div>
+
+              <div className="vscode-git-graph" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {rawHistory.map((c, index) => (
+                  <div
+                    key={c.hash || index}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                      background: "rgba(15, 29, 20, 0.7)",
+                      border: "1px solid rgba(167, 221, 166, 0.2)",
+                      borderRadius: "10px",
+                      padding: "14px 18px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }}
+                    onClick={() => {
+                      setRevertMessage("");
+                      setRevertError(false);
+                      setSelectedCommit(c);
+                    }}
+                  >
+                    {/* SVG Node & Line indicator */}
+                    <div style={{ position: "relative", width: "24px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {index < rawHistory.length - 1 && (
+                        <div style={{ position: "absolute", top: "20px", bottom: "-20px", width: "2px", background: "#a7dda6", left: "11px" }} />
+                      )}
+                      <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#a7dda6", boxShadow: "0 0 8px #a7dda6", zIndex: 2 }} />
+                    </div>
+
+                    <div style={{ flexGrow: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+                        <span style={{ fontFamily: "monospace", fontWeight: "700", color: "#a7dda6", background: "rgba(167, 221, 166, 0.15)", padding: "2px 6px", borderRadius: "4px", fontSize: "0.82rem" }}>
+                          {c.hash ? c.hash.slice(0, 7) : "commit"}
+                        </span>
+                        <span style={{ fontWeight: 600, color: "#ffffff", fontSize: "0.95rem" }}>
+                          {c.message || "Commit update"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "0.82rem", color: "#9eafa3", display: "flex", gap: "14px" }}>
+                        <span>Author: <strong>{c.author || ownerName}</strong></span>
+                        <span>Branch: <strong>{c.branch || repo.defaultBranch || "main"}</strong></span>
+                        <span>Date: <strong>{c.committedAt ? new Date(c.committedAt).toLocaleString() : "Recently"}</strong></span>
+                      </div>
+                    </div>
+
+                    <button
+                      className="gh-btn"
+                      style={{ fontSize: "0.8rem", padding: "6px 12px" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRevertMessage("");
+                        setRevertError(false);
+                        setSelectedCommit(c);
+                      }}
+                    >
+                      Inspect / Revert
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : activeTab === "settings" ? (
+            /* Settings Panel */
             <section className="gh-card" style={{ padding: "28px", maxWidth: "800px", margin: "0 auto 40px" }}>
               <div style={{ marginBottom: "20px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "12px" }}>
-                <h2 className="gh-card-title" style={{ fontSize: "1.4rem" }}>⚙️ Repository Settings</h2>
+                <h2 className="gh-card-title" style={{ fontSize: "1.4rem" }}>Repository Settings</h2>
                 <p className="gh-card-sub">Manage repository name, visibility, team group assignment, or delete this repository.</p>
               </div>
 
@@ -701,13 +890,13 @@ function RepoDetail() {
                         <option value="">-- Select a Group --</option>
                         {userGroups.map((g) => (
                           <option key={g._id} value={g._id}>
-                            👥 {g.name} ({g.members ? g.members.length : 1} members)
+                            {g.name} ({g.members ? g.members.length : 1} members)
                           </option>
                         ))}
                       </select>
                     ) : (
                       <p style={{ margin: 0, color: "#e4bd71", fontSize: "0.85rem" }}>
-                        ⚠️ You have not created or joined any team groups.
+                        You have not created or joined any team groups.
                       </p>
                     )}
                   </div>
@@ -760,7 +949,7 @@ function RepoDetail() {
                     style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", border: "1px solid rgba(239, 68, 68, 0.4)" }}
                     onClick={() => setShowDeleteConfirm(true)}
                   >
-                    🗑️ Delete Repository
+                    Delete Repository
                   </button>
                 )}
               </div>
@@ -769,216 +958,192 @@ function RepoDetail() {
             <>
               {/* Stat Strip */}
               <section className="gh-stats">
-            <div className="gh-stat">
-              <span className="gh-stat-value">{repo.commits || 0}</span>
-              <span className="gh-stat-label">Commits</span>
-            </div>
-            <div className="gh-stat">
-              <span className="gh-stat-value">{repoFiles.length}</span>
-              <span className="gh-stat-label">Files</span>
-            </div>
-            <div className="gh-stat">
-              <span className="gh-stat-value">{starCount}</span>
-              <span className="gh-stat-label">Stars</span>
-            </div>
-            <div className="gh-stat">
-              <span className="gh-stat-value">{repo.contributors || 1}</span>
-              <span className="gh-stat-label">Contributors</span>
-            </div>
-            <div className="gh-stat">
-              <span className="gh-stat-value">1</span>
-              <span className="gh-stat-label">Branch</span>
-            </div>
-            <div className="gh-stat">
-              <span className="gh-stat-value">3</span>
-              <span className="gh-stat-label">Languages</span>
-            </div>
-          </section>
-
-          {/* Body Grid */}
-          <div className="gh-grid">
-            {/* Main Column */}
-            <div className="gh-main-col">
-
-              {/* Files Panel */}
-              <section className="gh-card">
-                <div className="gh-card-head">
-                  <div>
-                    <h2 className="gh-card-title">📁 Files</h2>
-                    <p className="gh-card-sub">
-                      {repoFiles.length} item(s) in {repo.defaultBranch || "main"}
-                    </p>
-                  </div>
-                  <select className="gh-branch-selector" defaultValue={repo.defaultBranch || "main"}>
-                    <option>🌿 {repo.defaultBranch || "main"}</option>
-                    <option>master</option>
-                  </select>
+                <div className="gh-stat">
+                  <span className="gh-stat-value">{repo.commits || 0}</span>
+                  <span className="gh-stat-label">Commits</span>
                 </div>
-
-                {/* Last commit banner */}
-                <div className="gh-commit-banner">
-                  <div className="gh-commit-author">
-                    <img src={avatarUrl} alt={ownerName} className="gh-author-avatar" />
-                    <strong className="gh-commit-author-name">{ownerName}</strong>
-                    <span className="gh-commit-msg">
-                      {repo.lastCommit?.message || `Initial commit for ${repo.name}`}
-                    </span>
-                  </div>
-                  <div className="gh-commit-meta">
-                    <span className="gh-commit-hash">
-                      {repo.lastCommit?.hash?.slice(0, 7) || "a1b2c3d"}
-                    </span>
-                    <span>{repo.commits || 0} commits</span>
-                  </div>
+                <div className="gh-stat">
+                  <span className="gh-stat-value">{repoFiles.length}</span>
+                  <span className="gh-stat-label">Files</span>
                 </div>
+                <div className="gh-stat">
+                  <span className="gh-stat-value">{starCount}</span>
+                  <span className="gh-stat-label">Stars</span>
+                </div>
+                <div className="gh-stat">
+                  <span className="gh-stat-value">{repo.contributors || 1}</span>
+                  <span className="gh-stat-label">Contributors</span>
+                </div>
+                <div className="gh-stat">
+                  <span className="gh-stat-value">1</span>
+                  <span className="gh-stat-label">Branch</span>
+                </div>
+              </section>
 
-                {repoFiles.length > 0 ? (
-                  <div className="gh-file-list">
-                    {repoFiles.map((file, idx) => (
+              {/* Body Grid */}
+              <div className="gh-grid">
+                {/* Main Column */}
+                <div className="gh-main-col">
+
+                  {/* Files Panel */}
+                  <section className="gh-card">
+                    <div className="gh-card-head">
+                      <div>
+                        <h2 className="gh-card-title">Files</h2>
+                        <p className="gh-card-sub">
+                          {repoFiles.length} item(s) in {repo.defaultBranch || "main"}
+                        </p>
+                      </div>
+                      <select className="gh-branch-selector" defaultValue={repo.defaultBranch || "main"}>
+                        <option>Branch: {repo.defaultBranch || "main"}</option>
+                        <option>master</option>
+                      </select>
+                    </div>
+
+                    {/* Last commit banner */}
+                    <div className="gh-commit-banner">
+                      <div className="gh-commit-author">
+                        <img src={avatarUrl} alt={ownerName} className="gh-author-avatar" />
+                        <strong className="gh-commit-author-name">{ownerName}</strong>
+                        <span className="gh-commit-msg">
+                          {repo.lastCommit?.message || `Initial commit for ${repo.name}`}
+                        </span>
+                      </div>
+                      <div className="gh-commit-meta">
+                        <span className="gh-commit-hash">
+                          {repo.lastCommit?.hash?.slice(0, 7) || "a1b2c3d"}
+                        </span>
+                        <span>{repo.commits || 0} commits</span>
+                      </div>
+                    </div>
+
+                    {repoFiles.length > 0 ? (
+                      <div className="gh-file-list">
+                        {repoFiles.map((file, idx) => (
+                          <div
+                            className="gh-file-row"
+                            key={idx}
+                            onClick={() => handleOpenFile(file)}
+                          >
+                            <button
+                              type="button"
+                              className="gh-file-link"
+                              onClick={(e) => { e.stopPropagation(); handleOpenFile(file); }}
+                            >
+                              {file.path || file.b2FileName}
+                            </button>
+                            <span className="gh-b2-badge">{file.b2Url ? "B2 Cloud" : "Local"}</span>
+                            <span className="gh-file-desc">
+                              {repo.lastCommit?.message || "Upload file to repository"}
+                            </span>
+                            <span className="gh-file-size">
+                              {Math.max(1, Math.round((file.size || 0) / 1024))} KB
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* Interactive Drag & Drop Zone */
                       <div
-                        className="gh-file-row"
-                        key={idx}
-                        onClick={() => handleOpenFile(file)}
+                        className={`gh-dropzone ${isDragging ? "dragging" : ""}`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
                       >
-                        <button
-                          type="button"
-                          className="gh-file-link"
-                          onClick={(e) => { e.stopPropagation(); handleOpenFile(file); }}
-                        >
-                          📄 {file.path || file.b2FileName}
-                        </button>
-                        <span className="gh-b2-badge">☁️ {file.b2Url ? "B2 Cloud" : "Local"}</span>
-                        <span className="gh-file-desc">
-                          {repo.lastCommit?.message || "Upload file to repository"}
-                        </span>
-                        <span className="gh-file-size">
-                          {Math.max(1, Math.round((file.size || 0) / 1024))} KB
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* Interactive Drag & Drop Zone when repository has no files */
-                  <div
-                    className={`gh-dropzone ${isDragging ? "dragging" : ""}`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                  >
-                    <div className="gh-dropzone-icon">☁️</div>
-                    <div className="gh-dropzone-title">
-                      {uploading ? "Uploading files to Backblaze B2..." : "Drag and drop files or folders here"}
-                    </div>
-                    <div className="gh-dropzone-sub">
-                      Upload files or entire directory trees directly to Backblaze B2 Cloud Storage
-                    </div>
+                        <div className="gh-dropzone-title">
+                          {uploading ? "Uploading files..." : "Drag and drop files or folders here"}
+                        </div>
+                        <div className="gh-dropzone-sub">
+                          Upload files or entire directory trees directly to Cloud Storage
+                        </div>
 
-                    {!uploading && (
-                      <div className="gh-dropzone-actions">
-                        <button
-                          className="gh-btn gh-btn-green"
-                          type="button"
-                          onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                        >
-                          📄 Choose Files
-                        </button>
-                        <button
-                          className="gh-btn"
-                          type="button"
-                          onClick={() => folderInputRef.current && folderInputRef.current.click()}
-                        >
-                          📁 Upload Folder
-                        </button>
+                        {!uploading && (
+                          <div className="gh-dropzone-actions">
+                            <button
+                              className="gh-btn gh-btn-green"
+                              type="button"
+                              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                            >
+                              Choose Files
+                            </button>
+                            <button
+                              className="gh-btn"
+                              type="button"
+                              onClick={() => folderInputRef.current && folderInputRef.current.click()}
+                            >
+                              Upload Folder
+                            </button>
+                          </div>
+                        )}
+
+                        {uploadMessage && (
+                          <div className={`gh-dropzone-msg ${uploadError ? "gh-dropzone-msg-error" : ""}`}>
+                            {uploadMessage}
+                          </div>
+                        )}
                       </div>
                     )}
+                  </section>
 
-                    {uploadMessage && (
-                      <div className={`gh-dropzone-msg ${uploadError ? "gh-dropzone-msg-error" : ""}`}>
-                        {uploadMessage}
+                  {/* README Panel */}
+                  <section className="gh-card gh-readme">
+                    <div className="gh-card-head">
+                      <div>
+                        <h2 className="gh-card-title">README.md</h2>
+                        <p className="gh-card-sub">Overview &amp; documentation</p>
                       </div>
-                    )}
-                  </div>
-                )}
-              </section>
+                    </div>
+                    <div className="gh-readme-body">
+                      <h1 style={{ marginTop: 0 }}>{repo.name}</h1>
+                      <p style={{ fontSize: "15px", color: "var(--repo-text-soft)" }}>
+                        {repo.description || "Welcome to the official repository."}
+                      </p>
 
-              {/* README Panel */}
-              <section className="gh-card gh-readme">
-                <div className="gh-card-head">
-                  <div>
-                    <h2 className="gh-card-title">📖 README.md</h2>
-                    <p className="gh-card-sub">Overview & documentation</p>
-                  </div>
+                      <h2>Quick Start &amp; Installation</h2>
+                      <div className="gh-code-block">
+                        $ git clone {cloneUrl}<br />
+                        $ cd {repo.name}<br />
+                        $ npm install<br />
+                        $ npm run dev
+                      </div>
+
+                      <h2>Cloud Storage &amp; Features</h2>
+                      <ul style={{ color: "var(--repo-text-soft)", paddingLeft: "20px" }}>
+                        <li>Connected to Cloud Storage for secure file hosting.</li>
+                        <li>Visibility: <strong>{isPublic ? "Public Repository" : "Private Repository"}</strong>.</li>
+                        <li>Ignore .gitignore: <strong>{repo.ignoreGitignore ? "Yes (Include all files)" : "No"}</strong>.</li>
+                      </ul>
+                    </div>
+                  </section>
                 </div>
-                <div className="gh-readme-body">
-                  <h1 style={{ marginTop: 0 }}>{repo.name}</h1>
-                  <p style={{ fontSize: "15px", color: "var(--repo-text-soft)" }}>
-                    {repo.description || "Welcome to the official repository."}
-                  </p>
 
-                  <h2>🚀 Quick Start & Installation</h2>
-                  <div className="gh-code-block">
-                    $ git clone {cloneUrl}<br />
-                    $ cd {repo.name}<br />
-                    $ npm install<br />
-                    $ npm run dev
-                  </div>
-
-                  <h2>☁️ Cloud Storage & Features</h2>
-                  <ul style={{ color: "var(--repo-text-soft)", paddingLeft: "20px" }}>
-                    <li>Connected to <strong>Backblaze B2 Cloud Storage</strong> for secure file hosting.</li>
-                    <li>Visibility: <strong>{isPublic ? "Public Repository" : "Private Repository"}</strong>.</li>
-                    <li>Ignore .gitignore: <strong>{repo.ignoreGitignore ? "Yes (Include all files)" : "No"}</strong>.</li>
-                  </ul>
-                </div>
-              </section>
-            </div>
-
-            {/* Side Column */}
-            <aside className="gh-side-col">
-
-              {/* About */}
-              <section className="gh-card gh-side-card">
-                <h3 className="gh-card-title">ℹ️ About</h3>
-                <p className="gh-sidebar-desc">
-                  {repo.description || "No description, website, or topics provided."}
-                </p>
-                <div className="gh-topic-wrap">
-                  <span className="gh-topic-tag">react</span>
-                  <span className="gh-topic-tag">javascript</span>
-                  <span className="gh-topic-tag">gitrepo</span>
-                  <span className="gh-topic-tag">b2-cloud</span>
-                </div>
-              </section>
-
-              {/* Releases */}
-              <section className="gh-card gh-side-card">
-                <h3 className="gh-card-title">🏷️ Releases</h3>
-                <div className="gh-release-row">
-                  <span>🏷️</span>
-                  <strong>v1.0.0</strong>
-                  <span className="gh-release-latest">Latest</span>
-                </div>
-              </section>
-
-              
-            </aside>
-          </div>
-          </>
+                {/* Side Column */}
+                <aside className="gh-side-col">
+                  {/* About Section */}
+                  <section className="gh-card gh-side-card">
+                    <h3 className="gh-card-title">About</h3>
+                    <p className="gh-sidebar-desc">
+                      {repo.description || "No description provided for this repository."}
+                    </p>
+                  </section>
+                </aside>
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Backblaze B2 Upload Modal */}
+      {/* Upload Modal */}
       {showUploadModal && (
         <div className="gh-upload-modal-backdrop" onClick={() => setShowUploadModal(false)}>
           <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h2>☁️ Upload Files or Folder to Backblaze B2</h2>
+              <h2>Upload Files or Folder to Repository</h2>
               <button
                 style={{ background: "none", border: "none", color: "var(--repo-text-light)", fontSize: "1.2rem", cursor: "pointer" }}
                 onClick={() => setShowUploadModal(false)}
               >
-                ✕
+                X
               </button>
             </div>
 
@@ -1004,7 +1169,6 @@ function RepoDetail() {
                   }
                 }}
               >
-                <div style={{ fontSize: "1.8rem" }}>📂</div>
                 <div className="gh-dropzone-title" style={{ fontSize: "0.95rem" }}>
                   Drag files or folder here
                 </div>
@@ -1014,14 +1178,14 @@ function RepoDetail() {
                     type="button"
                     onClick={() => modalFileInputRef.current && modalFileInputRef.current.click()}
                   >
-                    📄 Choose Files
+                    Choose Files
                   </button>
                   <button
                     className="gh-btn"
                     type="button"
                     onClick={() => folderInputRef.current && folderInputRef.current.click()}
                   >
-                    📁 Choose Folder
+                    Choose Folder
                   </button>
                 </div>
                 <input
@@ -1046,7 +1210,7 @@ function RepoDetail() {
                   </strong>
                   {filesToUpload.slice(0, 10).map((f, i) => (
                     <div key={i} style={{ color: "var(--repo-text-soft)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      📄 {f.webkitRelativePath || f.name} ({(f.size / 1024).toFixed(1)} KB)
+                      {f.webkitRelativePath || f.name} ({(f.size / 1024).toFixed(1)} KB)
                     </div>
                   ))}
                   {filesToUpload.length > 10 && (
@@ -1083,7 +1247,7 @@ function RepoDetail() {
                   className="gh-btn gh-btn-green"
                   disabled={uploading || filesToUpload.length === 0}
                 >
-                  {uploading ? "Uploading to B2..." : "Upload & Commit"}
+                  {uploading ? "Uploading..." : "Upload & Commit"}
                 </button>
               </div>
 
@@ -1097,13 +1261,67 @@ function RepoDetail() {
         </div>
       )}
 
+      {/* Commit Details & Revert Modal */}
+      {selectedCommit && (
+        <div className="gh-upload-modal-backdrop" onClick={() => setSelectedCommit(null)}>
+          <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "560px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "10px" }}>
+              <h3 style={{ margin: 0, color: "#ffffff" }}>Commit Details</h3>
+              <button style={{ background: "none", border: "none", color: "#9eafa3", fontSize: "1.2rem", cursor: "pointer" }} onClick={() => setSelectedCommit(null)}>
+                X
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
+              <div>
+                <span style={{ fontSize: "0.8rem", color: "#748779", display: "block" }}>COMMIT HASH</span>
+                <span style={{ fontFamily: "monospace", color: "#a7dda6", fontWeight: "700" }}>{selectedCommit.hash}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: "0.8rem", color: "#748779", display: "block" }}>COMMIT MESSAGE</span>
+                <span style={{ color: "#ffffff", fontWeight: "600" }}>{selectedCommit.message || "No commit message"}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <span style={{ fontSize: "0.8rem", color: "#748779", display: "block" }}>COMMITTED BY</span>
+                  <span style={{ color: "#e7f1e5" }}>{selectedCommit.author || ownerName}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: "0.8rem", color: "#748779", display: "block" }}>COMMITTED AT</span>
+                  <span style={{ color: "#e7f1e5" }}>{selectedCommit.committedAt ? new Date(selectedCommit.committedAt).toLocaleString() : "N/A"}</span>
+                </div>
+              </div>
+            </div>
+
+            {revertMessage && (
+              <div style={{ color: revertError ? "var(--repo-error)" : "var(--repo-success)", fontWeight: 600, marginBottom: "16px" }}>
+                {revertMessage}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "14px", borderTop: "1px solid var(--repo-line)" }}>
+              <button type="button" className="gh-btn" onClick={() => setSelectedCommit(null)}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="gh-btn gh-btn-green"
+                disabled={reverting}
+                onClick={() => handleRevertCommit(selectedCommit.hash)}
+              >
+                {reverting ? "Reverting & Pushing..." : "Revert Changes & Push to Main"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* File Preview Modal */}
       {selectedFileForPreview && (
         <div className="gh-upload-modal-backdrop" onClick={() => setSelectedFileForPreview(null)}>
           <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "850px", width: "90%" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "12px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "1.2rem" }}>📄</span>
                 <strong style={{ color: "var(--repo-text)", fontSize: "15px" }}>{selectedFileForPreview.path || selectedFileForPreview.b2FileName}</strong>
                 <span style={{ fontSize: "12px", color: "var(--repo-text-soft)", background: "var(--repo-panel-soft)", border: "1px solid var(--repo-line)", padding: "2px 8px", borderRadius: "12px" }}>
                   {Math.max(1, Math.round((selectedFileForPreview.size || 0) / 1024))} KB
@@ -1113,119 +1331,41 @@ function RepoDetail() {
                 style={{ background: "none", border: "none", color: "var(--repo-text-light)", fontSize: "1.2rem", cursor: "pointer" }}
                 onClick={() => setSelectedFileForPreview(null)}
               >
-                ✕
+                X
               </button>
             </div>
 
             {/* Code Box */}
             <div style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: "var(--repo-radius-sm)", overflow: "hidden" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#161b22", padding: "8px 16px", borderBottom: "1px solid #30363d" }}>
-                <span style={{ fontSize: "12px", color: "#8b949e" }}>
-                  {isEditingFile ? "Edit Mode" : "Raw File Content"}
-                </span>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  {!isEditingFile && fileContent && (
-                    <button
-                      className="gh-btn"
-                      style={{ fontSize: "12px", padding: "3px 8px" }}
-                      onClick={() => {
-                        navigator.clipboard.writeText(fileContent);
-                        alert("File content copied to clipboard!");
-                      }}
-                    >
-                      📋 Copy Raw
-                    </button>
-                  )}
-                  {!isEditingFile && fileContent && !fileContentLoading && !fileContentError && (
-                    <button
-                      className="gh-btn gh-btn-green"
-                      style={{ fontSize: "12px", padding: "3px 8px" }}
-                      onClick={startEditingFile}
-                    >
-                      ✏️ Edit
-                    </button>
-                  )}
-                </div>
+                <span style={{ fontSize: "12px", color: "#8b949e" }}>Raw File Content</span>
+                {fileContent && (
+                  <button
+                    className="gh-btn"
+                    style={{ fontSize: "12px", padding: "3px 8px" }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(fileContent);
+                      alert("File content copied to clipboard!");
+                    }}
+                  >
+                    Copy Raw
+                  </button>
+                )}
               </div>
 
-              {isEditingFile ? (
-                <div style={{ padding: "16px" }}>
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    spellCheck={false}
-                    style={{
-                      width: "100%",
-                      minHeight: "320px",
-                      boxSizing: "border-box",
-                      resize: "vertical",
-                      background: "#0d1117",
-                      border: "1px solid #30363d",
-                      borderRadius: "6px",
-                      color: "#e6edf3",
-                      fontFamily: "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace",
-                      fontSize: "13px",
-                      lineHeight: "1.5",
-                      padding: "12px",
-                      outline: "none"
-                    }}
-                  />
-                  {fileSaveError && (
-                    <div style={{ color: "#f85149", marginTop: "10px", fontSize: "13px" }}>
-                      ⚠️ {fileSaveError}
-                    </div>
-                  )}
-                  {fileSaveSuccess && !fileSaveError && (
-                    <div style={{ color: "#3fb950", marginTop: "10px", fontSize: "13px" }}>
-                      ✅ {fileSaveSuccess}
-                    </div>
-                  )}
-                  <div style={{ marginTop: "12px" }}>
-                    <label style={{ display: "block", color: "var(--repo-text-soft)", fontSize: "12px", fontWeight: 600, marginBottom: "6px" }}>
-                      Commit Message
-                    </label>
-                    <input
-                      type="text"
-                      value={editMessage}
-                      onChange={(e) => setEditMessage(e.target.value)}
-                      placeholder="e.g. Update debug1.txt via editor"
-                      className="gh-modal-input"
-                    />
+              <div style={{ padding: "16px", maxHeight: "450px", overflowY: "auto", fontFamily: "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace", fontSize: "13px", color: "#e6edf3", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "#0d1117" }}>
+                {fileContentLoading ? (
+                  <div style={{ textAlign: "center", padding: "40px", color: "#8b949e" }}>
+                    Loading file content...
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "14px" }}>
-                    <button
-                      type="button"
-                      className="gh-btn"
-                      onClick={cancelEditingFile}
-                      disabled={savingFile}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="gh-btn gh-btn-green"
-                      onClick={handleCommitFileChange}
-                      disabled={savingFile}
-                    >
-                      {savingFile ? "Committing..." : "💾 Commit Changes"}
-                    </button>
+                ) : fileContentError ? (
+                  <div style={{ color: "#f85149", padding: "20px" }}>
+                    {fileContentError}
                   </div>
-                </div>
-              ) : (
-                <div style={{ padding: "16px", maxHeight: "450px", overflowY: "auto", fontFamily: "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace", fontSize: "13px", color: "#e6edf3", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "#0d1117" }}>
-                  {fileContentLoading ? (
-                    <div style={{ textAlign: "center", padding: "40px", color: "#8b949e" }}>
-                      Loading file content...
-                    </div>
-                  ) : fileContentError ? (
-                    <div style={{ color: "#f85149", padding: "20px" }}>
-                      ⚠️ {fileContentError}
-                    </div>
-                  ) : (
-                    <code>{fileContent || "(Empty file)"}</code>
-                  )}
-                </div>
-              )}
+                ) : (
+                  <code>{fileContent || "(Empty file)"}</code>
+                )}
+              </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
@@ -1237,7 +1377,7 @@ function RepoDetail() {
                   className="gh-btn gh-btn-green"
                   style={{ textDecoration: "none" }}
                 >
-                  🔗 Open Raw URL
+                  Open Raw URL
                 </a>
               )}
               <button
@@ -1251,9 +1391,70 @@ function RepoDetail() {
           </div>
         </div>
       )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="gh-upload-modal-backdrop" onClick={() => setShowReportModal(false)}>
+          <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "520px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "10px" }}>
+              <h3 style={{ margin: 0, color: "#ffffff" }}>Report Repository</h3>
+              <button
+                style={{ background: "none", border: "none", color: "#9eafa3", fontSize: "1.2rem", cursor: "pointer" }}
+                onClick={() => setShowReportModal(false)}
+              >
+                X
+              </button>
+            </div>
+
+            <form onSubmit={handleReportRepo}>
+              <p style={{ fontSize: "0.88rem", color: "var(--repo-text-soft)", marginBottom: "14px" }}>
+                Please describe the issue or reason for reporting <strong>{repo.name}</strong> to the system administrators.
+              </p>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", color: "var(--repo-text)", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                  Reason for Report *
+                </label>
+                <textarea
+                  rows="4"
+                  required
+                  placeholder="e.g. Inappropriate content, copyright infringement, malicious code, or spam..."
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="gh-modal-input"
+                  style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
+                />
+              </div>
+
+              {reportMessage && (
+                <div style={{ color: reportError ? "var(--repo-error)" : "var(--repo-success)", fontWeight: 600, marginBottom: "14px", fontSize: "13px" }}>
+                  {reportMessage}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: "1px solid var(--repo-line)", paddingTop: "14px" }}>
+                <button
+                  type="button"
+                  className="gh-btn"
+                  onClick={() => setShowReportModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="gh-btn"
+                  disabled={reporting || !reportReason.trim()}
+                  style={{ background: "#ef4444", borderColor: "#dc2626", color: "#ffffff" }}
+                >
+                  {reporting ? "Submitting Report..." : "Submit Report"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
 export default RepoDetail;
-
