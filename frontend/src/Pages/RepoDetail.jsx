@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import JSZip from "jszip";
 import User_header from "./User_header";
+import defaultProfile from "./assert/profile.png";
 import NotFound from "./NotFound";
 import "./style/GitHubRepo.css";
 import { useLoading } from "../context/LoadingContext";
@@ -631,7 +632,7 @@ function RepoDetail() {
   const repoFiles = repo.files || [];
   const ownerName = repo.owner || username;
   const cloneUrl = repo.remoteUrl || `https://git-repo-zlhn.onrender.com/${username}/${repo.name}.git`;
-  const avatarUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${ownerName}`;
+  const avatarUrl = defaultProfile;
 
   // Synthesize history list for VS Code style Git Graph containing ALL previous commits
   const rawHistory = (() => {
