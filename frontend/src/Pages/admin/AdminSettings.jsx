@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import defaultProfile from "../assert/profile.png";
 import { getAdminSettings, updateAdminSettings } from "./adminDataService";
 import "./Admin.css";
 
@@ -109,6 +110,13 @@ export default function AdminSettings({ showToast }) {
           <div className="panel-card">
             <h3 className="panel-card-title" style={{ marginBottom: "18px" }}>Admin Profile Details</h3>
             <form onSubmit={handleSaveProfile}>
+              <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                <img
+                  src={defaultProfile}
+                  alt="Admin Profile"
+                  style={{ width: "72px", height: "72px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--admin-primary)" }}
+                />
+              </div>
 
               <div className="form-group">
                 <label>Full Name</label>

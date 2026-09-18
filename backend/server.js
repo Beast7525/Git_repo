@@ -2,10 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const dns = require("dns");
 const { authorizeB2 } = require("./backblaze");
-// Set DNS servers for MongoDB Atlas SRV resolution
-dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const app = express();
 
@@ -49,19 +46,20 @@ app.use("/api/groups", groupRoutes);
 
 const PORT = process.env.PORT || 5000;
 
-// MongoDB Connection & Server Start
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB Atlas connected successfully");
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
   })
   .catch((error) => {
-    console.error("MongoDB connection error on startup:", error);
-    process.exit(1);
+    console.error("MongoDB connection error on startup:", error.message);
   });
+
 authorizeB2().catch((err) => {
   console.error("❌ Backblaze connection failed:", err.message);
 });

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import defaultProfile from "../assert/profile.png";
 import "./Admin.css";
 
 export default function AdminLayout({ activeTab, setActiveTab, adminUser, children, onLogout }) {
@@ -99,7 +100,13 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
               className="admin-profile-pill"
               onClick={() => setActiveTab("settings")}
               title="View Admin Profile"
+              style={{ display: "flex", alignItems: "center", gap: "10px" }}
             >
+              <img
+                src={defaultProfile}
+                alt="Admin Profile"
+                style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }}
+              />
               <div className="admin-user-info">
                 <span className="admin-name">
                   {adminUser?.name || "Administrator"}
