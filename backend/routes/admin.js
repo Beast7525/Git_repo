@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Issue = require("../models/Issue");
 const Repo = require("../models/Repo");
@@ -65,7 +66,7 @@ router.get("/users", async (req, res) => {
       status: u.status || "Active",
       suspensionReason: u.suspensionReason || "",
       suspendedUntil: u.suspendedUntil ? u.suspendedUntil.toISOString().split("T")[0] : null,
-      registrationDate: u.createdAt ? u.createdAt.toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      registrationDate: u.createdAt ? new Date(u.createdAt).toISOString().split("T")[0] : (u.registrationDate || new Date().toISOString().split("T")[0]),
       avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${u.username || u._id}`,
       permissions: u.gmail === "gitrepo02@gmail.com" ? ["Full System Admin", "Manage Users", "Manage Repos"] : ["Push Code", "Create Issues"]
     }));
@@ -127,11 +128,22 @@ router.put("/users/:id/suspend", async (req, res) => {
 // DELETE /api/admin/users/:id - Delete user from database
 router.delete("/users/:id", async (req, res) => {
   try {
-    const deleted = await User.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ message: "User not found." });
+    const { id } = req.params;
+    let deleted = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      deleted = await User.findByIdAndDelete(id);
     }
-    res.status(200).json({ message: `User ${deleted.username} deleted successfully.` });
+    if (!deleted) {
+      deleted = await User.findOneAndDelete({ username: id });
+    }
+    if (!deleted) {
+      return res.status(404).json({ message: "User not found or already deleted." });
+    }
+    await Group.updateMany(
+      {},
+      { $pull: { members: { memberId: id } } }
+    );
+    res.status(200).json({ message: `User deleted successfully.` });
   } catch (error) {
     console.error("Error deleting user:", error);
     res.status(500).json({ message: "Error deleting user: " + error.message });
@@ -158,6 +170,33 @@ router.get("/repos", async (req, res) => {
     })));
   } catch (error) {
     res.status(500).json({ message: "Error fetching repositories: " + error.message });
+  }
+});
+
+// DELETE /api/admin/repos/:id - Delete repository from database
+router.delete("/repos/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    let deleted = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      deleted = await Repo.findByIdAndDelete(id);
+    }
+    if (!deleted) {
+      deleted = await Repo.findOneAndDelete({
+        $or: [{ repositoryName: id }, { name: id }]
+      });
+    }
+    if (!deleted) {
+      return res.status(404).json({ message: "Repository not found or already deleted." });
+    }
+    await Group.updateMany(
+      { repositories: id },
+      { $pull: { repositories: id } }
+    );
+    res.status(200).json({ message: `Repository deleted successfully.` });
+  } catch (error) {
+    console.error("Error deleting repository in admin:", error);
+    res.status(500).json({ message: "Error deleting repository: " + error.message });
   }
 });
 

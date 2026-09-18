@@ -120,7 +120,7 @@ export default function AdminDashboard() {
             <AdminDashboardView stats={stats} onNavigateTab={(tab) => setActiveTab(tab)} />
           )}
           {activeTab === "users" && (
-            <UserManagementView stats={stats} onNavigateTab={(tab) => setActiveTab(tab)} />
+            <UserManagementView showToast={showToast} stats={stats} onNavigateTab={(tab) => setActiveTab(tab)} />
           )}
           {activeTab === "groups" && (
             <GroupManagementView showToast={showToast} />

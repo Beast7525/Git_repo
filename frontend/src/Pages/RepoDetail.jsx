@@ -161,6 +161,15 @@ function RepoDetail() {
   const [reportMessage, setReportMessage] = useState("");
   const [reportError, setReportError] = useState(false);
 
+  // Issue Modal States
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueTitle, setIssueTitle] = useState("");
+  const [issueDescription, setIssueDescription] = useState("");
+  const [creatingIssue, setCreatingIssue] = useState(false);
+  const [issueMessage, setIssueMessage] = useState("");
+  const [issueError, setIssueError] = useState(false);
+  const [openIssueCount, setOpenIssueCount] = useState(0);
+
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
@@ -190,6 +199,15 @@ function RepoDetail() {
             groupId: data.groupId || (data.group ? (typeof data.group === "object" ? data.group._id : data.group) : ""),
             description: data.description || ""
           });
+
+          // Fetch open issue count for the Issues button badge
+          try {
+            const issueRes = await fetch(`${API_BASE_URL}/api/issues?repository=${encodeURIComponent(data.name || data.repositoryName || repoName)}`);
+            if (issueRes.ok) {
+              const issueData = await issueRes.json();
+              setOpenIssueCount(Array.isArray(issueData) ? issueData.filter((i) => i.status === "open").length : 0);
+            }
+          } catch (_) {}
         } else {
           setNotFound(true);
         }
@@ -542,6 +560,50 @@ function RepoDetail() {
     }
   }
 
+  async function handleCreateIssue(e) {
+    e.preventDefault();
+    if (!issueTitle.trim() || !issueDescription.trim()) {
+      setIssueError(true);
+      setIssueMessage("Please enter both a title and a description for the issue.");
+      return;
+    }
+    setCreatingIssue(true);
+    setIssueMessage("");
+    setIssueError(false);
+    try {
+      const currentUserObj = JSON.parse(localStorage.getItem("user") || "{}");
+      const reporterUserId = localStorage.getItem("userId") || currentUserObj.id || "";
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/issues`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: issueTitle.trim(),
+          description: issueDescription.trim(),
+          author: loggedInUsername,
+          reporterUserId
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || res.statusText);
+      }
+      setIssueError(false);
+      setIssueMessage(`Issue #${data.number || ""} raised successfully. The repository owner/team has been notified.`);
+      setIssueTitle("");
+      setIssueDescription("");
+      setOpenIssueCount((prev) => prev + 1);
+      setTimeout(() => {
+        setShowIssueModal(false);
+        setIssueMessage("");
+      }, 2400);
+    } catch (err) {
+      setIssueError(true);
+      setIssueMessage(err.message || "Failed to create issue.");
+    } finally {
+      setCreatingIssue(false);
+    }
+  }
+
   function toggleStar() {
     if (isStarred) {
       setIsStarred(false);
@@ -681,6 +743,25 @@ function RepoDetail() {
                   <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
                 </svg>
                 {downloadingZip ? "Zipping..." : "Download ZIP"}
+              </button>
+
+              <button
+                className="gh-btn"
+                type="button"
+                onClick={() => {
+                  setIssueTitle("");
+                  setIssueDescription("");
+                  setIssueMessage("");
+                  setIssueError(false);
+                  setShowIssueModal(true);
+                }}
+                style={{ borderColor: "rgba(167, 221, 166, 0.5)", color: "#a7dda6" }}
+                title="Raise an issue about a bug or error found in this repository"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: "6px" }}>
+                  <path d="M8 1.5a.5.5 0 0 1 .5.5v.513c1.53.282 3.5 1.687 3.5 4.237v3.293l1.103 2.206A.5.5 0 0 1 12.646 13H3.354a.5.5 0 0 1-.457-.751L4 10.043V6.75c0-2.55 1.97-3.955 3.5-4.237V2a.5.5 0 0 1 .5-.5zM6 14.5h4a.5.5 0 0 1-.088.82 2.5 2.5 0 0 1-3.824 0A.5.5 0 0 1 6 14.5z"/>
+                </svg>
+                Issues <span className="gh-btn-count">{openIssueCount}</span>
               </button>
 
               <button
@@ -1447,6 +1528,82 @@ function RepoDetail() {
                   style={{ background: "#ef4444", borderColor: "#dc2626", color: "#ffffff" }}
                 >
                   {reporting ? "Submitting Report..." : "Submit Report"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Modal */}
+      {showIssueModal && (
+        <div className="gh-upload-modal-backdrop" onClick={() => setShowIssueModal(false)}>
+          <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "520px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "10px" }}>
+              <h3 style={{ margin: 0, color: "#ffffff" }}>Raise an Issue</h3>
+              <button
+                style={{ background: "none", border: "none", color: "#9eafa3", fontSize: "1.2rem", cursor: "pointer" }}
+                onClick={() => setShowIssueModal(false)}
+              >
+                X
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateIssue}>
+              <p style={{ fontSize: "0.88rem", color: "var(--repo-text-soft)", marginBottom: "14px" }}>
+                Found a bug or error in <strong>{repo.name}</strong>? Describe the problem below. The issue will be sent to the
+                repository owner/team, where they can track and close it once resolved.
+              </p>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", color: "var(--repo-text)", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                  Issue Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Crash when uploading large files"
+                  value={issueTitle}
+                  onChange={(e) => setIssueTitle(e.target.value)}
+                  className="gh-modal-input"
+                />
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", color: "var(--repo-text)", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                  Description *
+                </label>
+                <textarea
+                  rows="5"
+                  required
+                  placeholder="Describe the bug, steps to reproduce, expected vs actual behavior..."
+                  value={issueDescription}
+                  onChange={(e) => setIssueDescription(e.target.value)}
+                  className="gh-modal-input"
+                  style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
+                />
+              </div>
+
+              {issueMessage && (
+                <div style={{ color: issueError ? "var(--repo-error)" : "var(--repo-success)", fontWeight: 600, marginBottom: "14px", fontSize: "13px" }}>
+                  {issueMessage}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: "1px solid var(--repo-line)", paddingTop: "14px" }}>
+                <button
+                  type="button"
+                  className="gh-btn"
+                  onClick={() => setShowIssueModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="gh-btn gh-btn-green"
+                  disabled={creatingIssue || !issueTitle.trim() || !issueDescription.trim()}
+                >
+                  {creatingIssue ? "Raising Issue..." : "Submit Issue"}
                 </button>
               </div>
             </form>

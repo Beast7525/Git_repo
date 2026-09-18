@@ -77,10 +77,10 @@ export default function AdminSettings({ showToast }) {
       {/* Settings Navigation Tabs */}
       <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid var(--admin-border)", marginBottom: "24px" }}>
         {[
-          { id: "profile", label: "👤 Profile Info & Security", icon: "👤" },
-          { id: "system", label: "⚙️ System Configuration", icon: "⚙️" },
-          { id: "security", label: "🔒 Security & Sessions", icon: "🔒" },
-          { id: "notifications", label: "🔔 Notifications & Alerts", icon: "🔔" }
+          { id: "profile", label: "Profile Info & Security" },
+          { id: "system", label: "System Configuration" },
+          { id: "security", label: "Security & Sessions" },
+          { id: "notifications", label: "Notifications & Alerts" }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -109,22 +109,6 @@ export default function AdminSettings({ showToast }) {
           <div className="panel-card">
             <h3 className="panel-card-title" style={{ marginBottom: "18px" }}>Admin Profile Details</h3>
             <form onSubmit={handleSaveProfile}>
-              <div className="form-group" style={{ textAlign: "center", marginBottom: "20px" }}>
-                {profileForm.avatar && (
-                  <img
-                    src={profileForm.avatar}
-                    alt="Admin Avatar"
-                    style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--admin-primary)", marginBottom: "10px" }}
-                  />
-                )}
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Avatar Image URL"
-                  value={profileForm.avatar || ""}
-                  onChange={(e) => setProfileForm({ ...profileForm, avatar: e.target.value })}
-                />
-              </div>
 
               <div className="form-group">
                 <label>Full Name</label>

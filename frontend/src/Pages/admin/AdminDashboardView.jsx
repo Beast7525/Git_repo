@@ -3,12 +3,12 @@ import "./Admin.css";
 
 export default function AdminDashboardView({ stats, onNavigateTab }) {
   const cards = [
-    { title: "Total Users", value: stats.totalUsers || 0, icon: "👥", color: "blue", sub: "Database records" },
-    { title: "Total Repositories", value: stats.totalRepos || 0, icon: "📦", color: "purple", sub: "Public & Private" },
-    { title: "Total Commits", value: stats.totalCommits || 0, icon: "🔨", color: "amber", sub: "Across all branches" },
-    { title: "Open Issues", value: stats.openIssues || 0, icon: "⚠️", color: "red", sub: "Needs triage" },
-    { title: "Closed Issues", value: stats.closedIssues || 0, icon: "✅", color: "green", sub: "Resolved" },
-    { title: "Pending PRs", value: stats.pendingPRs || 0, icon: "🔀", color: "purple", sub: "Awaiting review" },
+    { title: "Total Users", value: stats.totalUsers || 0, sub: "Database records" },
+    { title: "Total Repositories", value: stats.totalRepos || 0, sub: "Public & Private" },
+    { title: "Total Commits", value: stats.totalCommits || 0, sub: "Across all branches" },
+    { title: "Open Issues", value: stats.openIssues || 0, sub: "Needs triage" },
+    { title: "Closed Issues", value: stats.closedIssues || 0, sub: "Resolved" },
+    { title: "Pending PRs", value: stats.pendingPRs || 0, sub: "Awaiting review" },
   ];
 
   return (
@@ -22,7 +22,7 @@ export default function AdminDashboardView({ stats, onNavigateTab }) {
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           <button className="btn-secondary" onClick={() => onNavigateTab("reports")}>
-            📈 View Full Reports
+            View Full Reports
           </button>
           <button className="btn-primary" onClick={() => onNavigateTab("repos")}>
             + New Repository
@@ -34,9 +34,6 @@ export default function AdminDashboardView({ stats, onNavigateTab }) {
       <div className="stat-cards-grid">
         {cards.map((card, idx) => (
           <div key={idx} className="stat-card-widget">
-            <div className={`stat-icon-wrapper ${card.color}`}>
-              {card.icon}
-            </div>
             <div className="stat-info-group">
               <p>{card.title}</p>
               <h2>{card.value}</h2>
@@ -98,7 +95,7 @@ export default function AdminDashboardView({ stats, onNavigateTab }) {
             </div>
 
             <div style={{ background: "rgba(15, 23, 42, 0.5)", padding: "14px", borderRadius: "10px", border: "1px solid var(--admin-border)", marginTop: "18px" }}>
-              <h4 style={{ margin: "0 0 6px", fontSize: "0.9rem" }}>🖥️ System Status</h4>
+              <h4 style={{ margin: "0 0 6px", fontSize: "0.9rem" }}>System Status</h4>
               <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--admin-text-muted)" }}>
                 MongoDB Atlas: <strong style={{ color: "var(--admin-accent-green)" }}>Connected</strong>
               </p>

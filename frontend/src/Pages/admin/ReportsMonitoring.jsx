@@ -69,7 +69,7 @@ export default function ReportsMonitoring() {
             className="btn-secondary"
             onClick={() => alert("Simulating Report Export as CSV/PDF...")}
           >
-            📥 Export Report (CSV)
+            Export Report (CSV)
           </button>
         </div>
       </div>
@@ -77,7 +77,6 @@ export default function ReportsMonitoring() {
       {/* High Level Key Performance Indicator Cards */}
       <div className="stat-cards-grid">
         <div className="stat-card-widget">
-          <div className="stat-icon-wrapper green">📈</div>
           <div className="stat-info-group">
             <p>Active Users Growth</p>
             <h2>{stats.totalUsers || 0}</h2>
@@ -86,7 +85,6 @@ export default function ReportsMonitoring() {
         </div>
 
         <div className="stat-card-widget">
-          <div className="stat-icon-wrapper blue">📦</div>
           <div className="stat-info-group">
             <p>Repo Growth Rate</p>
             <h2>{stats.totalRepos || 0}</h2>
@@ -95,7 +93,6 @@ export default function ReportsMonitoring() {
         </div>
 
         <div className="stat-card-widget">
-          <div className="stat-icon-wrapper purple">🔨</div>
           <div className="stat-info-group">
             <p>Total Commit Volume</p>
             <h2>{stats.totalCommits || 0}</h2>
@@ -104,7 +101,6 @@ export default function ReportsMonitoring() {
         </div>
 
         <div className="stat-card-widget">
-          <div className="stat-icon-wrapper amber">⚡</div>
           <div className="stat-info-group">
             <p>PR Resolution Velocity</p>
             <h2>{stats.storageUsed || "Not tracked"}</h2>

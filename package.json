@@ -1,6 +1,1 @@
-{
-  "dependencies": {
-    "nodemailer": "^9.0.5",
-    "react-router-dom": "^7.18.1"
-  }
-}
+{}

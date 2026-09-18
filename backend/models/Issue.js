@@ -16,21 +16,18 @@ const issueSchema = new mongoose.Schema(
     status: { type: String, enum: ["open", "closed"], default: "open" },
     author: { type: String, required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    repository: { type: String, default: "" },
+    repositoryOwner: { type: String, default: "" },
     comments: [commentSchema],
   },
   { timestamps: true }
 );
 
 // Pre-save hook to auto-increment the issue number
-issueSchema.pre("save", async function (next) {
-  if (!this.isNew) return next();
-  try {
-    const lastIssue = await mongoose.model("Issue").findOne({}, {}, { sort: { number: -1 } });
-    this.number = lastIssue && lastIssue.number ? lastIssue.number + 1 : 1;
-    next();
-  } catch (err) {
-    next(err);
-  }
+issueSchema.pre("save", async function () {
+  if (!this.isNew || this.number) return;
+  const lastIssue = await mongoose.model("Issue").findOne({}, {}, { sort: { number: -1 } });
+  this.number = lastIssue && lastIssue.number ? lastIssue.number + 1 : 1;
 });
 
 module.exports = mongoose.model("Issue", issueSchema);

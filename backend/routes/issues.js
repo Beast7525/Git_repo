@@ -5,11 +5,23 @@ const router = express.Router();
 // GET /api/issues - Fetch all issues with optional filtering (status, search)
 router.get("/", async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, repository, userId, author } = req.query;
     const filter = {};
 
     if (status) {
       filter.status = status;
+    }
+
+    if (repository) {
+      filter.repository = { $regex: repository, $options: "i" };
+    }
+
+    if (userId) {
+      filter.userId = userId;
+    }
+
+    if (author) {
+      filter.author = { $regex: author, $options: "i" };
     }
 
     if (search) {
@@ -44,7 +56,7 @@ router.get("/:id", async (req, res) => {
 // POST /api/issues - Create a new issue
 router.post("/", async (req, res) => {
   try {
-    const { title, description, author, userId } = req.body;
+    const { title, description, author, userId, repository, repositoryOwner } = req.body;
 
     if (!title || !description || !author || !userId) {
       return res.status(400).json({ message: "Title, description, author, and userId are required" });
@@ -55,6 +67,8 @@ router.post("/", async (req, res) => {
       description,
       author,
       userId,
+      repository: repository || "",
+      repositoryOwner: repositoryOwner || "",
     });
 
     await newIssue.save();

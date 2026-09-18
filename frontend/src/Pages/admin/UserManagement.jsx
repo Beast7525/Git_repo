@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
 import {
   fetchUsersFromDB,
-  saveUser,
   suspendUserInDB,
   deleteUserInDB
 } from "./adminDataService";
 import "./Admin.css";
 
-export default function UserManagement({ showToast }) {
+export default function UserManagement({ showToast = (msg) => console.log(msg) }) {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
@@ -24,19 +23,9 @@ export default function UserManagement({ showToast }) {
   }, []);
 
   // Modal states
-  const [editingUser, setEditingUser] = useState(null);
-  const [permissionsUser, setPermissionsUser] = useState(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
   const [suspendModalUser, setSuspendModalUser] = useState(null);
   const [suspendForm, setSuspendForm] = useState({ reason: "", durationDays: 7 });
-
-  // Form states
-  const [userForm, setUserForm] = useState({
-    name: "",
-    email: "",
-    role: "Developer",
-    status: "Active"
-  });
 
   // Filtered Users list
   const filteredUsers = users.filter((u) => {
@@ -48,24 +37,6 @@ export default function UserManagement({ showToast }) {
     const matchesStatus = statusFilter === "All" || u.status === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
   });
-
-  function handleOpenAddModal() {
-    setUserForm({ name: "", email: "", role: "Developer", status: "Active" });
-    setEditingUser({ isNew: true });
-  }
-
-  function handleOpenEditModal(user) {
-    setUserForm({ name: user.name, email: user.email, role: user.role, status: user.status });
-    setEditingUser(user);
-  }
-
-  function handleSaveUserSubmit(e) {
-    e.preventDefault();
-    const updated = saveUser({ ...editingUser, ...userForm });
-    setUsers(updated);
-    showToast(`User "${userForm.name}" saved successfully!`);
-    setEditingUser(null);
-  }
 
   async function handleConfirmSuspend(e) {
     e.preventDefault();
@@ -114,25 +85,15 @@ export default function UserManagement({ showToast }) {
     }
   }
 
-  function handleSavePermissions(permList) {
-    const updated = saveUser({ ...permissionsUser, permissions: permList });
-    setUsers(updated);
-    showToast(`Permissions updated for ${permissionsUser.name}`);
-    setPermissionsUser(null);
-  }
-
   return (
     <div>
       <div className="page-title-row">
         <div>
           <h1 className="page-title">User Management</h1>
           <p className="page-subtitle">
-            Manage system administrators, developers, maintainers, roles, suspension policies, and email alerts
+            Manage system users, view roles, set suspension policies with mandatory email notifications, and manage account access.
           </p>
         </div>
-        <button className="btn-primary" onClick={handleOpenAddModal}>
-          + Add New User
-        </button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -197,10 +158,7 @@ export default function UserManagement({ showToast }) {
                       {u.id}
                     </td>
                     <td>
-                      <div className="user-cell">
-                        <img src={u.avatar} alt={u.name} className="user-cell-avatar" />
-                        <span style={{ fontWeight: "600" }}>{u.name}</span>
-                      </div>
+                      <span style={{ fontWeight: "600" }}>{u.name}</span>
                     </td>
                     <td>{u.email}</td>
                     <td>
@@ -219,25 +177,10 @@ export default function UserManagement({ showToast }) {
                       )}
                     </td>
                     <td style={{ color: "var(--admin-text-subtle)", fontSize: "0.82rem" }}>
-                      {u.registrationDate}
+                      {u.registrationDate || (u.createdAt ? new Date(u.createdAt).toISOString().split("T")[0] : "N/A")}
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                        <button
-                          className="btn-sm-action"
-                          style={{ background: "rgba(99, 102, 241, 0.15)", color: "var(--admin-primary)" }}
-                          onClick={() => handleOpenEditModal(u)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn-sm-action"
-                          style={{ background: "rgba(168, 85, 247, 0.15)", color: "var(--admin-accent-purple)" }}
-                          onClick={() => setPermissionsUser(u)}
-                        >
-                          Permissions
-                        </button>
-
                         {u.status === "Suspended" ? (
                           <button
                             className="btn-sm-action"
@@ -275,68 +218,6 @@ export default function UserManagement({ showToast }) {
           </table>
         </div>
       </div>
-
-      {/* Edit / Add User Modal */}
-      {editingUser && (
-        <div className="modal-backdrop">
-          <div className="modal-container">
-            <div className="modal-header">
-              <h3 className="modal-title">{editingUser.isNew ? "Add New User" : `Edit User: ${editingUser.name}`}</h3>
-              <button className="modal-close-btn" onClick={() => setEditingUser(null)}>&times;</button>
-            </div>
-            <form onSubmit={handleSaveUserSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Full Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    required
-                    value={userForm.name}
-                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Email Address</label>
-                  <input
-                    type="email"
-                    className="form-control"
-                    required
-                    value={userForm.email}
-                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>System Role</label>
-                  <select
-                    className="form-control"
-                    value={userForm.role}
-                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                  >
-                    <option value="Admin">Admin</option>
-                    <option value="Maintainer">Maintainer</option>
-                    <option value="Developer">Developer</option>
-                    <option value="Viewer">Viewer</option>
-                  </select>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setEditingUser(null)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Permissions Modal */}
-      {permissionsUser && (
-        <PermissionsModal
-          user={permissionsUser}
-          onClose={() => setPermissionsUser(null)}
-          onSave={handleSavePermissions}
-        />
-      )}
 
       {/* Suspend User Dialog with Period & Reason */}
       {suspendModalUser && (
@@ -412,71 +293,6 @@ export default function UserManagement({ showToast }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function PermissionsModal({ user, onClose, onSave }) {
-  const allAvailablePermissions = [
-    "Full System Admin",
-    "Manage Users",
-    "Manage Repos",
-    "Delete Projects",
-    "System Config",
-    "Approve PRs",
-    "Manage Issues",
-    "Push Code"
-  ];
-
-  const [selectedPerms, setSelectedPerms] = useState(user.permissions || []);
-
-  function togglePerm(perm) {
-    if (selectedPerms.includes(perm)) {
-      setSelectedPerms(selectedPerms.filter((p) => p !== perm));
-    } else {
-      setSelectedPerms([...selectedPerms, perm]);
-    }
-  }
-
-  return (
-    <div className="modal-backdrop">
-      <div className="modal-container">
-        <div className="modal-header">
-          <h3 className="modal-title">Manage Permissions: {user.name}</h3>
-          <button className="modal-close-btn" onClick={onClose}>&times;</button>
-        </div>
-        <div className="modal-body">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            {allAvailablePermissions.map((perm) => (
-              <label
-                key={perm}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "8px 12px",
-                  background: selectedPerms.includes(perm) ? "rgba(99, 102, 241, 0.15)" : "rgba(15, 23, 42, 0.5)",
-                  border: `1px solid ${selectedPerms.includes(perm) ? "var(--admin-primary)" : "var(--admin-border)"}`,
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "0.85rem"
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedPerms.includes(perm)}
-                  onChange={() => togglePerm(perm)}
-                />
-                <span>{perm}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={() => onSave(selectedPerms)}>Save Permissions</button>
-        </div>
-      </div>
     </div>
   );
 }

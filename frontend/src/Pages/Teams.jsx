@@ -126,6 +126,31 @@ export default function Teams() {
     }
   }
 
+  // Remove Member from Group
+  async function handleRemoveMember(groupId, memberId, memberName) {
+    if (!window.confirm(`Are you sure you want to remove "${memberName}" from this group?`)) return;
+    try {
+      startLoading();
+      const res = await fetch(`${API_BASE_URL}/api/groups/${groupId}/members/${memberId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setIsError(false);
+        setMessage(`Member "${memberName}" removed successfully.`);
+        loadUserGroups();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setIsError(true);
+        setMessage(errData.message || "Failed to remove member.");
+      }
+    } catch (err) {
+      setIsError(true);
+      setMessage("Error removing member: " + err.message);
+    } finally {
+      stopLoading();
+    }
+  }
+
   return (
     <main className="teams-page-layout">
       <User_header />
@@ -163,16 +188,40 @@ export default function Teams() {
 
                   <div className="team-section-title">Members ({group.members ? group.members.length : 0})</div>
                   <div className="member-list">
-                    {(group.members || []).map((m, idx) => (
-                      <div key={m._id || idx} className="member-item">
-                        <div className="member-info">
-                          <span className="member-name">{m.username || m.email}</span>
+                    {(group.members || []).map((m, idx) => {
+                      const isMemberCreator = m.role === 'creator' || (m.username && m.username.toLowerCase() === (group.creator || "").toLowerCase());
+                      return (
+                        <div key={m._id || idx} className="member-item">
+                          <div className="member-info">
+                            <span className="member-name">{m.username || m.email}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>
+                              {isMemberCreator ? 'Owner / Creator' : 'Editor'}
+                            </span>
+                            {isCreator && !isMemberCreator && m._id && (
+                              <button
+                                type="button"
+                                style={{
+                                  background: "rgba(239, 68, 68, 0.15)",
+                                  color: "#ef4444",
+                                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                                  borderRadius: "6px",
+                                  padding: "3px 8px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: "600",
+                                  cursor: "pointer"
+                                }}
+                                onClick={() => handleRemoveMember(group._id, m._id, m.username || m.email)}
+                                title="Remove member from group"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <span className={`team-role-badge ${m.role === 'creator' ? 'creator' : 'editor'}`}>
-                          {m.role === 'creator' ? 'Owner / Creator' : 'Editor'}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {group.repositories && group.repositories.length > 0 && (

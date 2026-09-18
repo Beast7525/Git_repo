@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   fetchReposFromDB,
   saveRepository,
-  deleteRepository
+  deleteRepoFromDB
 } from "./adminDataService";
 import "./Admin.css";
 
@@ -23,7 +23,6 @@ export default function RepoManagement({ showToast }) {
 
   // Modal states
   const [editingRepo, setEditingRepo] = useState(null);
-  const [permissionsRepo, setPermissionsRepo] = useState(null);
   const [confirmDeleteRepo, setConfirmDeleteRepo] = useState(null);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
 
@@ -50,21 +49,6 @@ export default function RepoManagement({ showToast }) {
     const matchesStatus = statusFilter === "All" || r.status === statusFilter;
     return matchesSearch && matchesVis && matchesStatus;
   });
-
-  function handleOpenCreate() {
-    setRepoForm({
-      name: "",
-      owner: "Alexander Wright",
-      ownerEmail: "alexander.wright@gitrepo.org",
-      visibility: "Public",
-      status: "Active",
-      description: "",
-      ignoreGitignore: false,
-      contributors: 1,
-      commits: 1
-    });
-    setEditingRepo({ isNew: true });
-  }
 
   function handleOpenEdit(repo) {
     setRepoForm({
@@ -116,17 +100,23 @@ export default function RepoManagement({ showToast }) {
     loadRepos();
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (!confirmDeleteRepo) return;
-    if (deleteConfirmInput.trim() !== confirmDeleteRepo.name) {
+    const targetName = confirmDeleteRepo.name || confirmDeleteRepo.repositoryName || "";
+    if (deleteConfirmInput.trim().toLowerCase() !== targetName.toLowerCase()) {
       alert("Repository name confirmation does not match!");
       return;
     }
-    const updated = deleteRepository(confirmDeleteRepo.id);
-    setRepos(updated);
-    showToast(`Repository "${confirmDeleteRepo.name}" permanently deleted.`);
-    setConfirmDeleteRepo(null);
-    setDeleteConfirmInput("");
+    const repoId = confirmDeleteRepo.id || confirmDeleteRepo._id;
+    const success = await deleteRepoFromDB(repoId);
+    if (success) {
+      showToast(`Repository "${targetName}" permanently deleted from database.`);
+      setConfirmDeleteRepo(null);
+      setDeleteConfirmInput("");
+      loadRepos();
+    } else {
+      showToast("Failed to delete repository from database.");
+    }
   }
 
   return (
@@ -138,9 +128,6 @@ export default function RepoManagement({ showToast }) {
             System repositories derived from database table 'repositories'
           </p>
         </div>
-        <button className="btn-primary" onClick={handleOpenCreate}>
-          + Create Repository
-        </button>
       </div>
 
       {/* Filter and Search Bar */}

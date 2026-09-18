@@ -1,9 +1,11 @@
 const express = require("express");
 const fs = require("fs/promises");
 const path = require("path");
+const mongoose = require("mongoose");
 const Repo = require("../models/Repo");
 const User = require("../models/User");
 const Group = require("../models/Group");
+const Issue = require("../models/Issue");
 const { initializeRepository, commitFileChange } = require("../gitRepositoryService");
 const { parseGitignore, isIgnored, isGitignoreFile, normalizeRelPath } = require("../gitignore");
 
@@ -967,6 +969,75 @@ router.post("/find/:owner/:repoName/report", async (req, res) => {
   } catch (error) {
     console.error("Error reporting repository:", error);
     res.status(500).json({ message: "Error reporting repository: " + error.message });
+  }
+});
+
+// POST /api/repos/find/:owner/:repoName/issues - Raise an issue for a repo (sent to the owner/team)
+router.post("/find/:owner/:repoName/issues", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { title, description, author, reporterUserId } = req.body || {};
+
+    if (!title || !title.trim() || !description || !description.trim() || !author || !author.trim()) {
+      return res.status(400).json({ message: "Title, description, and author are required." });
+    }
+
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail username") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        { $or: [{ name: repoRegex }, { repositoryName: repoRegex }] }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    // Resolve the registered owner/team user so the issue lands on their Issues page
+    let ownerUser = matchingUser;
+    if (!ownerUser && repo.ownerEmail) {
+      ownerUser = await User.findOne({ gmail: new RegExp(`^${escapeRegex(repo.ownerEmail)}$`, "i") }).select("gmail username");
+    }
+    if (!ownerUser) {
+      ownerUser = await User.findOne({ username: new RegExp(`^${escapeRegex(repo.owner)}$`, "i") }).select("gmail username");
+    }
+
+    const assignedUserId =
+      (ownerUser && ownerUser._id) ||
+      (reporterUserId && mongoose.isValidObjectId(reporterUserId) ? reporterUserId : null);
+
+    if (!assignedUserId) {
+      return res.status(400).json({ message: "Could not determine the repository owner to assign this issue." });
+    }
+
+    const newIssue = new Issue({
+      title: title.trim(),
+      description: description.trim(),
+      author: author.trim(),
+      userId: assignedUserId,
+      repository: repo.name || repo.repositoryName,
+      repositoryOwner: repo.owner || owner,
+    });
+
+    await newIssue.save();
+    res.status(201).json(newIssue);
+  } catch (error) {
+    console.error("Error creating repository issue:", error);
+    res.status(500).json({ message: "Error creating repository issue: " + error.message });
   }
 });
 

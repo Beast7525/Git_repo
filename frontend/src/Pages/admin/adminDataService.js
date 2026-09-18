@@ -224,7 +224,7 @@ export async function deleteUserInDB(userId) {
     const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
       method: "DELETE"
     });
-    return res.ok;
+    return res.ok || res.status === 404;
   } catch (e) {
     console.error("Error deleting user in DB:", e);
     return false;
@@ -290,6 +290,18 @@ export function saveRepository(repo) {
   }
   setStoredData(STORAGE_KEYS.REPOS, updated);
   return updated;
+}
+
+export async function deleteRepoFromDB(repoId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/repos/${repoId}`, {
+      method: "DELETE"
+    });
+    return res.ok || res.status === 404;
+  } catch (e) {
+    console.error("Error deleting repository in DB:", e);
+    return false;
+  }
 }
 
 export function deleteRepository(repoId) {
