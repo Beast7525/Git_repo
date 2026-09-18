@@ -181,7 +181,7 @@ function Profile() {
                     </p>
 
                     <div className="repo-card-meta">
-                      <span className="repo-owner">👤 Owner: <strong>{repo.owner || username}</strong></span>
+                      <span className="repo-owner">Owner: <strong>{repo.owner || username}</strong></span>
                       <span>🔨 {repo.commits || 0} commits</span>
                       <span className="repo-date">
                         📅 {repo.creationDate || (repo.createdAt ? repo.createdAt.split("T")[0] : "Recently")}

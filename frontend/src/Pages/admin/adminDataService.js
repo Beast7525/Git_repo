@@ -197,7 +197,7 @@ export function saveUser(user) {
       id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
       registrationDate: new Date().toISOString().split("T")[0],
       status: user.status || "Active",
-      avatar: user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.name}`
+      avatar: user.avatar || "/assets/profile-DqVJK6zr.png"
     };
     updated = [newUser, ...users];
   }

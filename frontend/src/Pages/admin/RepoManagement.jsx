@@ -190,7 +190,7 @@ export default function RepoManagement({ showToast }) {
                     <td>
                       <div>
                         <strong style={{ fontSize: "0.95rem", color: "var(--admin-accent-blue)" }}>
-                          📦 {r.name || r.repositoryName || "untitled-repository"}
+                          {r.name || r.repositoryName || "untitled-repository"}
                         </strong>
                         {r.description && (
                           <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "var(--admin-text-subtle)", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

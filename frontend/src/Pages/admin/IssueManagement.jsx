@@ -147,10 +147,10 @@ export default function IssueManagement({ showToast }) {
                       </div>
                     </td>
                     <td>
-                      <span className="badge badge-developer">📦 {i.repository}</span>
+                      <span className="badge badge-developer"> {i.repository}</span>
                     </td>
                     <td>{i.createdBy}</td>
-                    <td style={{ fontWeight: "600" }}>👤 {i.assignedUser}</td>
+                    <td style={{ fontWeight: "600" }}>{i.assignedUser}</td>
                     <td>
                       <span className={`badge ${i.priority === 'Critical' ? 'badge-critical' : i.priority === 'High' ? 'badge-high' : i.priority === 'Medium' ? 'badge-medium' : 'badge-low'}`}>
                         {i.priority}

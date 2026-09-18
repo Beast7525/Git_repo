@@ -122,7 +122,7 @@ export default function PullRequestManagement({ showToast }) {
                       </div>
                     </td>
                     <td>
-                      <span className="badge badge-developer">📦 {p.repository}</span>
+                      <span className="badge badge-developer">{p.repository}</span>
                     </td>
                     <td>{p.createdBy}</td>
                     <td>
@@ -194,11 +194,11 @@ export default function PullRequestManagement({ showToast }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
                 <div>
                   <label style={{ fontSize: "0.78rem", color: "var(--admin-text-subtle)", display: "block" }}>Repository</label>
-                  <strong>📦 {selectedPR.repository}</strong>
+                  <strong>{selectedPR.repository}</strong>
                 </div>
                 <div>
                   <label style={{ fontSize: "0.78rem", color: "var(--admin-text-subtle)", display: "block" }}>Created By</label>
-                  <strong>👤 {selectedPR.createdBy}</strong>
+                  <strong>{selectedPR.createdBy}</strong>
                 </div>
               </div>
 

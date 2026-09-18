@@ -77,7 +77,7 @@ router.get("/users", async (req, res) => {
       suspensionReason: u.suspensionReason || "",
       suspendedUntil: u.suspendedUntil ? u.suspendedUntil.toISOString().split("T")[0] : null,
       registrationDate: u.createdAt ? new Date(u.createdAt).toISOString().split("T")[0] : (u.registrationDate || new Date().toISOString().split("T")[0]),
-      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${u.username || u._id}`,
+      avatar: "/assets/profile-DqVJK6zr.png",
       permissions: u.gmail === "gitrepo02@gmail.com" ? ["Full System Admin", "Manage Users", "Manage Repos"] : ["Push Code", "Create Issues"]
     }));
     res.status(200).json(formatted);
