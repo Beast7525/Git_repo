@@ -167,4 +167,4 @@ module.exports = {
   isIgnored,
   isGitignoreFile,
   normalizeRelPath
-};
+};  
