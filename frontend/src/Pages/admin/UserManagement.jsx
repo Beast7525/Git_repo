@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import defaultProfile from "../assert/profile.png";
 import {
   fetchUsersFromDB,
   suspendUserInDB,
@@ -158,7 +159,14 @@ export default function UserManagement({ showToast = (msg) => console.log(msg) }
                       {u.id}
                     </td>
                     <td>
-                      <span style={{ fontWeight: "600" }}>{u.name}</span>
+                      <div className="user-cell" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <img
+                          src={defaultProfile}
+                          alt={u.name}
+                          style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }}
+                        />
+                        <span style={{ fontWeight: "600" }}>{u.name}</span>
+                      </div>
                     </td>
                     <td>{u.email}</td>
                     <td>
