@@ -102,7 +102,7 @@ export default function UserManagement({ showToast = (msg) => console.log(msg) }
         <input
           type="text"
           className="filter-input-search"
-          placeholder="Search by name, email, or user ID..."
+          placeholder="Search by name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -136,7 +136,6 @@ export default function UserManagement({ showToast = (msg) => console.log(msg) }
           <table className="admin-table">
             <thead>
               <tr>
-                <th>User ID</th>
                 <th>Name &amp; Avatar</th>
                 <th>Email</th>
                 <th>Role</th>
@@ -148,16 +147,13 @@ export default function UserManagement({ showToast = (msg) => console.log(msg) }
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: "center", padding: "40px", color: "var(--admin-text-muted)" }}>
+                  <td colSpan="6" style={{ textAlign: "center", padding: "40px", color: "var(--admin-text-muted)" }}>
                     No database users found.
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((u) => (
                   <tr key={u.id}>
-                    <td style={{ fontWeight: "700", color: "var(--admin-text-subtle)", fontSize: "0.8rem" }}>
-                      {u.id}
-                    </td>
                     <td>
                       <div className="user-cell" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <img
