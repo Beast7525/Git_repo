@@ -84,7 +84,7 @@ export default function AdminDashboardView({ stats, onNavigateTab }) {
               </div>
             </div>
 
-            <div style={{ marginBottom: "16px" }}>
+            {/*<div style={{ marginBottom: "16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginBottom: "6px" }}>
                 <span>Pending Pull Requests</span>
                 <span style={{ color: "var(--admin-accent-purple)", fontWeight: "600" }}>{stats.pendingPRs || 0} Awaiting Approval</span>
@@ -92,7 +92,7 @@ export default function AdminDashboardView({ stats, onNavigateTab }) {
               <div style={{ height: "8px", background: "rgba(255,255,255,0.1)", borderRadius: "4px", overflow: "hidden", display: "flex" }}>
                 <div style={{ width: `${stats.pendingPRs ? 100 : 0}%`, background: "var(--admin-accent-purple)" }}></div>
               </div>
-            </div>
+            </div>*/}
 
             <div style={{ background: "rgba(15, 23, 42, 0.5)", padding: "14px", borderRadius: "10px", border: "1px solid var(--admin-border)", marginTop: "18px" }}>
               <h4 style={{ margin: "0 0 6px", fontSize: "0.9rem" }}>System Status</h4>
@@ -105,7 +105,7 @@ export default function AdminDashboardView({ stats, onNavigateTab }) {
       </div>
 
       {/* System Activity Log */}
-      <div className="panel-card">
+      <div className="panel-card">   
         <div className="panel-card-header">
           <div>
             <h3 className="panel-card-title">Recent System Activity</h3>

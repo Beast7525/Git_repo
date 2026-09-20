@@ -205,7 +205,7 @@ const { b2, authorizeB2 } = require("../backblaze");
 router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
   try {
     const { owner, repoName } = req.params;
-    const { message } = req.body || {};
+    const { message, branch } = req.body || {};
     const files = req.files || (req.file ? [req.file] : []);
 
     if (!files || files.length === 0) {
@@ -243,6 +243,13 @@ router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
 
     if (!repo) {
       return res.status(404).json({ message: "Repository not found" });
+    }
+
+    const targetBranch = (typeof branch === "string" && branch.trim()) ? branch.trim() : (repo.defaultBranch || "main");
+
+    repo.branches = repo.branches || ["main"];
+    if (!repo.branches.includes(targetBranch)) {
+      repo.branches.push(targetBranch);
     }
 
     // Backblaze B2 Upload logic
@@ -318,10 +325,11 @@ router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
         contentType: file.mimetype,
         b2FileName: b2FileName,
         b2Url: b2Url,
+        branch: targetBranch,
         uploadedAt: new Date()
       };
 
-      const existingIndex = repo.files.findIndex(f => f.path === fileName);
+      const existingIndex = repo.files.findIndex(f => f.path === fileName && (f.branch || "main") === targetBranch);
       if (existingIndex >= 0) {
         repo.files[existingIndex] = newFileObj;
       } else {
@@ -336,14 +344,14 @@ router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
     );
 
     const commitHash = Math.random().toString(36).substring(2, 9);
-    const commitMsg = message && message.trim() ? message.trim() : `Uploaded ${uploadedCount} file${uploadedCount > 1 ? "s" : ""}`;
+    const commitMsg = message && message.trim() ? message.trim() : `Uploaded ${uploadedCount} file${uploadedCount > 1 ? "s" : ""} to ${targetBranch}`;
     const authorName = owner || repo.owner || "Developer";
 
     repo.commits = (repo.commits || 0) + 1;
     repo.lastCommit = {
       hash: commitHash,
       message: commitMsg,
-      branch: repo.defaultBranch || "main",
+      branch: targetBranch,
       committedAt: new Date()
     };
 
@@ -351,17 +359,77 @@ router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
     repo.commitHistory.unshift({
       hash: commitHash,
       message: commitMsg,
-      branch: repo.defaultBranch || "main",
+      branch: targetBranch,
       author: authorName,
       committedAt: new Date(),
       snapshotFiles: JSON.parse(JSON.stringify(repo.files || []))
     });
 
     await repo.save();
-    res.status(200).json({ message: `Successfully uploaded ${uploadedCount} file(s) to Backblaze B2 cloud storage`, repo });
+    res.status(200).json({ message: `Successfully uploaded ${uploadedCount} file(s) to ${targetBranch} branch`, repo });
   } catch (error) {
     console.error("Error uploading file to repo:", error);
     res.status(500).json({ message: "Upload failed: " + error.message });
+  }
+});
+
+// POST /api/repos/find/:owner/:repoName/branches - Create a new branch
+router.post("/find/:owner/:repoName/branches", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { branchName } = req.body || {};
+
+    const cleanBranch = (typeof branchName === "string" ? branchName : "").trim();
+    if (!cleanBranch) {
+      return res.status(400).json({ message: "Branch name is required." });
+    }
+
+    if (!/^[a-zA-Z0-9_\-\.\/]+$/.test(cleanBranch)) {
+      return res.status(400).json({ message: "Invalid branch name format. Use letters, numbers, hyphens, and slashes." });
+    }
+
+    const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+    const ownerRegex = flexibleIdentityRegex(owner);
+    const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+    const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+    if (matchingUser?.gmail) {
+      ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+    }
+
+    let repo = await Repo.findOne({
+      $and: [
+        { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+        { $or: [{ name: repoRegex }, { repositoryName: repoRegex }] }
+      ]
+    });
+
+    if (!repo) {
+      repo = await Repo.findOne({
+        $or: [{ name: repoRegex }, { repositoryName: repoRegex }]
+      });
+    }
+
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found" });
+    }
+
+    repo.branches = repo.branches && repo.branches.length > 0 ? repo.branches : ["main"];
+
+    if (repo.branches.some(b => b.toLowerCase() === cleanBranch.toLowerCase())) {
+      return res.status(409).json({ message: `Branch "${cleanBranch}" already exists.` });
+    }
+
+    repo.branches.push(cleanBranch);
+    await repo.save();
+
+    res.status(201).json({
+      message: `Branch "${cleanBranch}" created successfully.`,
+      branches: repo.branches,
+      repo
+    });
+  } catch (error) {
+    console.error("Error creating branch:", error);
+    res.status(500).json({ message: "Error creating branch: " + error.message });
   }
 });
 

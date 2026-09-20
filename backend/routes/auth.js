@@ -96,8 +96,15 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    // Find user and include password field
-    const user = await User.findOne({ gmail }).select("+password");
+    const normalizedInput = (gmail || "").trim().toLowerCase();
+
+    // Find user by email or username and include password field
+    const user = await User.findOne({
+      $or: [
+        { gmail: normalizedInput },
+        { username: new RegExp(`^${normalizedInput}$`, "i") }
+      ]
+    }).select("+password");
 
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });

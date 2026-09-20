@@ -364,7 +364,7 @@ export default function RepoManagement({ showToast }) {
             </div>
             <div className="modal-body">
               <p style={{ margin: "0 0 10px", fontSize: "0.9rem" }}>
-                Deleting <strong>{confirmDeleteRepo.name}</strong> will remove all commits, issues, and pull requests.
+                Deleting <strong>{confirmDeleteRepo.name}</strong> will remove all commits, issues.
               </p>
               <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "var(--admin-text-muted)" }}>
                 To confirm, type <strong style={{ color: "white" }}>{confirmDeleteRepo.name}</strong> in the box below:

@@ -29,6 +29,7 @@ const repoSchema = new mongoose.Schema(
     contributors: { type: Number, default: 1 },
     commits: { type: Number, default: 0 },
     defaultBranch: { type: String, default: "main" },
+    branches: { type: [String], default: ["main"] },
     remoteUrl: { type: String, default: "" },
     storagePath: { type: String, default: "" },
     files: [
@@ -38,7 +39,8 @@ const repoSchema = new mongoose.Schema(
         contentType: String,
         b2FileName: String,
         b2Url: String,
-        content: String
+        content: String,
+        branch: { type: String, default: "main" }
       }
     ],
     lastCommit: {

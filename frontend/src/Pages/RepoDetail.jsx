@@ -171,6 +171,13 @@ function RepoDetail() {
   const [issueError, setIssueError] = useState(false);
   const [openIssueCount, setOpenIssueCount] = useState(0);
 
+  // Branch Management States
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [showCreateBranchModal, setShowCreateBranchModal] = useState(false);
+  const [newBranchInput, setNewBranchInput] = useState("");
+  const [creatingBranch, setCreatingBranch] = useState(false);
+  const [branchError, setBranchError] = useState("");
+
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
@@ -432,6 +439,7 @@ function RepoDetail() {
         formData.append("files", file, filePath);
       });
       formData.append("message", finalCommitMsg);
+      formData.append("branch", selectedBranch || repo?.defaultBranch || "main");
 
       const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/upload`, {
         method: "POST",
@@ -605,6 +613,41 @@ function RepoDetail() {
     }
   }
 
+  async function handleCreateBranch(e) {
+    e.preventDefault();
+    const cleanName = newBranchInput.trim();
+    if (!cleanName) {
+      setBranchError("Branch name is required.");
+      return;
+    }
+    setCreatingBranch(true);
+    setBranchError("");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchName: cleanName })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || res.statusText);
+      }
+
+      setRepo(data.repo);
+      setSelectedBranch(cleanName);
+      setNewBranchInput("");
+      setBranchError("");
+      setShowCreateBranchModal(false);
+    } catch (err) {
+      console.error("Create branch error:", err);
+      setBranchError(err.message || "Failed to create branch.");
+    } finally {
+      setCreatingBranch(false);
+    }
+  }
+
   function toggleStar() {
     if (isStarred) {
       setIsStarred(false);
@@ -630,6 +673,11 @@ function RepoDetail() {
 
   const isPublic = repo.visibility === "public" || repo.visibility === "Public";
   const repoFiles = repo.files || [];
+  const activeBranch = selectedBranch || repo.defaultBranch || "main";
+  const repoBranches = Array.isArray(repo.branches) && repo.branches.length > 0 ? repo.branches : [repo.defaultBranch || "main"];
+  const currentBranchFiles = repoFiles.filter(
+    (f) => (f.branch || repo.defaultBranch || "main") === activeBranch
+  );
   const ownerName = repo.owner || username;
   const cloneUrl = repo.remoteUrl || `https://git-repo-zlhn.onrender.com/${username}/${repo.name}.git`;
   const avatarUrl = defaultProfile;
@@ -711,10 +759,10 @@ function RepoDetail() {
                   {repo.description || "No description provided for this repository yet."}
                 </p>
                 <div className="gh-hero-chips">
-                  <span className="gh-chip">Branch: {repo.defaultBranch || "main"}</span>
+                  <span className="gh-chip">Branch: {activeBranch}</span>
                   <span className="gh-chip">{(repo.contributors || 1)} contributor(s)</span>
                   <span className="gh-chip">
-                    ~{Math.max(1, Math.round(repoFiles.reduce((s, f) => s + (f.size || 0), 0) / 1024))} KB
+                    ~{Math.max(1, Math.round(currentBranchFiles.reduce((s, f) => s + (f.size || 0), 0) / 1024))} KB
                   </span>
                   <span className="gh-chip">
                     {repo.lastCommit?.hash ? `Last commit ${repo.lastCommit.hash.slice(0, 7)}` : "Awaiting first commit"}
@@ -1045,10 +1093,6 @@ function RepoDetail() {
                   <span className="gh-stat-label">Commits</span>
                 </div>
                 <div className="gh-stat">
-                  <span className="gh-stat-value">{repoFiles.length}</span>
-                  <span className="gh-stat-label">Files</span>
-                </div>
-                <div className="gh-stat">
                   <span className="gh-stat-value">{starCount}</span>
                   <span className="gh-stat-label">Stars</span>
                 </div>
@@ -1057,8 +1101,8 @@ function RepoDetail() {
                   <span className="gh-stat-label">Contributors</span>
                 </div>
                 <div className="gh-stat">
-                  <span className="gh-stat-value">1</span>
-                  <span className="gh-stat-label">Branch</span>
+                  <span className="gh-stat-value">{repoBranches.length}</span>
+                  <span className="gh-stat-label">{repoBranches.length === 1 ? "Branch" : "Branches"}</span>
                 </div>
               </section>
 
@@ -1073,13 +1117,43 @@ function RepoDetail() {
                       <div>
                         <h2 className="gh-card-title">Files</h2>
                         <p className="gh-card-sub">
-                          {repoFiles.length} item(s) in {repo.defaultBranch || "main"}
+                          {currentBranchFiles.length} item(s) in {activeBranch}
                         </p>
                       </div>
-                      <select className="gh-branch-selector" defaultValue={repo.defaultBranch || "main"}>
-                        <option>Branch: {repo.defaultBranch || "main"}</option>
-                        <option>master</option>
-                      </select>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <select
+                          className="gh-branch-selector"
+                          value={activeBranch}
+                          onChange={(e) => {
+                            if (e.target.value === "__NEW_BRANCH__") {
+                              setNewBranchInput("");
+                              setBranchError("");
+                              setShowCreateBranchModal(true);
+                            } else {
+                              setSelectedBranch(e.target.value);
+                            }
+                          }}
+                        >
+                          {repoBranches.map((b) => (
+                            <option key={b} value={b}>
+                              Branch: {b}
+                            </option>
+                          ))}
+                          <option value="__NEW_BRANCH__">+ Create New Branch...</option>
+                        </select>
+                        <button
+                          className="gh-btn"
+                          style={{ fontSize: "12px", padding: "6px 10px" }}
+                          type="button"
+                          onClick={() => {
+                            setNewBranchInput("");
+                            setBranchError("");
+                            setShowCreateBranchModal(true);
+                          }}
+                        >
+                          + New Branch
+                        </button>
+                      </div>
                     </div>
 
                     {/* Last commit banner */}
@@ -1099,9 +1173,9 @@ function RepoDetail() {
                       </div>
                     </div>
 
-                    {repoFiles.length > 0 ? (
+                    {currentBranchFiles.length > 0 ? (
                       <div className="gh-file-list">
-                        {repoFiles.map((file, idx) => (
+                        {currentBranchFiles.map((file, idx) => (
                           <div
                             className="gh-file-row"
                             key={idx}
@@ -1133,10 +1207,10 @@ function RepoDetail() {
                         onDrop={handleDrop}
                       >
                         <div className="gh-dropzone-title">
-                          {uploading ? "Uploading files..." : "Drag and drop files or folders here"}
+                          {uploading ? "Uploading files..." : `Branch "${activeBranch}" is currently empty`}
                         </div>
                         <div className="gh-dropzone-sub">
-                          Upload files or entire directory trees directly to Cloud Storage
+                          Drag and drop files or folders here to upload files directly into {activeBranch}
                         </div>
 
                         {!uploading && (
@@ -1146,7 +1220,7 @@ function RepoDetail() {
                               type="button"
                               onClick={() => fileInputRef.current && fileInputRef.current.click()}
                             >
-                              Choose Files
+                              Choose Files for {activeBranch}
                             </button>
                             <button
                               className="gh-btn"
@@ -1165,37 +1239,6 @@ function RepoDetail() {
                         )}
                       </div>
                     )}
-                  </section>
-
-                  {/* README Panel */}
-                  <section className="gh-card gh-readme">
-                    <div className="gh-card-head">
-                      <div>
-                        <h2 className="gh-card-title">README.md</h2>
-                        <p className="gh-card-sub">Overview &amp; documentation</p>
-                      </div>
-                    </div>
-                    <div className="gh-readme-body">
-                      <h1 style={{ marginTop: 0 }}>{repo.name}</h1>
-                      <p style={{ fontSize: "15px", color: "var(--repo-text-soft)" }}>
-                        {repo.description || "Welcome to the official repository."}
-                      </p>
-
-                      <h2>Quick Start &amp; Installation</h2>
-                      <div className="gh-code-block">
-                        $ git clone {cloneUrl}<br />
-                        $ cd {repo.name}<br />
-                        $ npm install<br />
-                        $ npm run dev
-                      </div>
-
-                      <h2>Cloud Storage &amp; Features</h2>
-                      <ul style={{ color: "var(--repo-text-soft)", paddingLeft: "20px" }}>
-                        <li>Connected to Cloud Storage for secure file hosting.</li>
-                        <li>Visibility: <strong>{isPublic ? "Public Repository" : "Private Repository"}</strong>.</li>
-                        <li>Ignore .gitignore: <strong>{repo.ignoreGitignore ? "Yes (Include all files)" : "No"}</strong>.</li>
-                      </ul>
-                    </div>
                   </section>
                 </div>
 
@@ -1605,6 +1648,67 @@ function RepoDetail() {
                   disabled={creatingIssue || !issueTitle.trim() || !issueDescription.trim()}
                 >
                   {creatingIssue ? "Raising Issue..." : "Submit Issue"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Branch Modal */}
+      {showCreateBranchModal && (
+        <div className="gh-upload-modal-backdrop" onClick={() => setShowCreateBranchModal(false)}>
+          <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "460px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "10px" }}>
+              <h3 style={{ margin: 0, color: "#ffffff" }}>Create New Branch</h3>
+              <button
+                style={{ background: "none", border: "none", color: "#9eafa3", fontSize: "1.2rem", cursor: "pointer" }}
+                onClick={() => setShowCreateBranchModal(false)}
+              >
+                X
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateBranch}>
+              <p style={{ fontSize: "0.88rem", color: "var(--repo-text-soft)", marginBottom: "14px" }}>
+                Enter a name for the new branch. The branch will start empty so you can upload files into it.
+              </p>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", color: "var(--repo-text)", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                  Branch Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. dev, feature-login, v1.0"
+                  value={newBranchInput}
+                  onChange={(e) => setNewBranchInput(e.target.value)}
+                  className="gh-modal-input"
+                  autoFocus
+                />
+              </div>
+
+              {branchError && (
+                <div style={{ color: "var(--repo-error)", fontWeight: 600, marginBottom: "14px", fontSize: "13px" }}>
+                  {branchError}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: "1px solid var(--repo-line)", paddingTop: "14px" }}>
+                <button
+                  type="button"
+                  className="gh-btn"
+                  onClick={() => setShowCreateBranchModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="gh-btn gh-btn-green"
+                  disabled={creatingBranch || !newBranchInput.trim()}
+                >
+                  {creatingBranch ? "Creating..." : "Create Branch"}
                 </button>
               </div>
             </form>

@@ -30,7 +30,7 @@ function User_header(){
             <p onClick={()=> navigate('/teams')}>Teams</p>
             <p onClick={()=> navigate('/Stars')}>Stars</p>
             <p onClick={()=> navigate('/Issue')}>Issues</p>
-            <p>Pull Requests</p>
+            {/*<p>Pull Requests</p>*/}
             
           </div>
         </div><img className="profile-img" src={profile} alt="Profile" onClick={() => navigate('/User_Profile')} />
