@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
 import ForgotPassword from "./ForgotPassword";
-import { isAdminCredentials } from "../auth/adminAuth";
+import { isAdminCredentials } from "../auth/adminAuth.js";
 import { useLoading } from "../context/LoadingContext";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { isAdminCredentials } from "../../auth/adminAuth";
+import { isAdminCredentials } from "../../auth/adminAuth.js";
 import { useLoading } from "../../context/LoadingContext";
 import "./Admin.css";
 
