@@ -863,7 +863,7 @@ function RepoDetail() {
             <section className="gh-card" style={{ padding: "28px", maxWidth: "900px", margin: "0 auto 40px" }}>
               <div style={{ marginBottom: "20px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "12px" }}>
                 <h2 className="gh-card-title" style={{ fontSize: "1.4rem" }}>Git Commit Graph &amp; History</h2>
-                <p className="gh-card-sub">VS Code style commit timeline. Click any commit node to inspect details or revert changes.</p>
+                
               </div>
 
               <div className="vscode-git-graph" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>

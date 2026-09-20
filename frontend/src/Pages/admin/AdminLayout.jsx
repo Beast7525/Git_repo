@@ -28,7 +28,7 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
     localStorage.removeItem("user");
     localStorage.removeItem("token");
     if (onLogout) onLogout();
-    navigate("/login");
+    navigate("/admin/login");
   }
 
   return (

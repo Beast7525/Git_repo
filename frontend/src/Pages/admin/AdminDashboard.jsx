@@ -79,7 +79,7 @@ export default function AdminDashboard() {
       adminUser={adminUser}
       onLogout={() => {
         localStorage.clear();
-        navigate("/login");
+        navigate("/admin/login");
       }}
     >
       {/* Toast Notification Alert */}

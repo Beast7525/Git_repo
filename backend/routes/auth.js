@@ -147,6 +147,40 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Admin Login Route (utilizes ADMIN_EMAIL and ADMIN_PASSWORD environment variables)
+router.post("/admin-login", (req, res) => {
+  try {
+    const { gmail, email, password } = req.body || {};
+    const inputEmail = (gmail || email || "").trim().toLowerCase();
+    const inputPassword = (password || "").trim();
+
+    const expectedEmail = (process.env.ADMIN_EMAIL || "gitrepo02@gmail.com").trim().toLowerCase();
+    const expectedPassword = (process.env.ADMIN_PASSWORD || "admin12345").trim();
+
+    if (!inputEmail || !inputPassword) {
+      return res.status(400).json({ message: "Email and password are required." });
+    }
+
+    if (inputEmail === expectedEmail && inputPassword === expectedPassword) {
+      return res.status(200).json({
+        message: "Admin login successful",
+        user: {
+          id: "admin-1",
+          username: "Admin",
+          name: "System Administrator",
+          gmail: expectedEmail,
+          role: "admin",
+        },
+      });
+    }
+
+    return res.status(401).json({ message: "Invalid admin credentials" });
+  } catch (error) {
+    console.error("Admin login error:", error);
+    res.status(500).json({ message: "Server error: " + error.message });
+  }
+});
+
 // Send a one-time password to an existing user's email.
 router.post("/forgot-password", async (req, res) => {
   try {
