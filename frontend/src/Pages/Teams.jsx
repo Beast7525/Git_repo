@@ -101,6 +101,7 @@ export default function Teams() {
     }
 
     try {
+      startLoading();
       const res = await fetch(`${API_BASE_URL}/api/groups/${selectedGroupForMember._id}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,18 +112,22 @@ export default function Teams() {
         })
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        setIsError(false);
+        setMessage(data.message || `Invitation sent to ${rawVal}! They will join the group upon accepting.`);
         setNewMemberForm({ identifier: "", role: "editor" });
         setSelectedGroupForMember(null);
         loadUserGroups();
       } else {
-        const errData = await res.json().catch(() => ({}));
         setIsError(true);
-        setMessage(errData.message || "Failed to add member.");
+        setMessage(data.message || "Failed to add member.");
       }
     } catch (err) {
       setIsError(true);
       setMessage("Error adding member: " + err.message);
+    } finally {
+      stopLoading();
     }
   }
 
@@ -190,15 +195,22 @@ export default function Teams() {
                   <div className="member-list">
                     {(group.members || []).map((m, idx) => {
                       const isMemberCreator = m.role === 'creator' || (m.username && m.username.toLowerCase() === (group.creator || "").toLowerCase());
+                      const isPending = m.status === "pending";
                       return (
                         <div key={m._id || idx} className="member-item">
                           <div className="member-info">
                             <span className="member-name">{m.username || m.email}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>
-                              {isMemberCreator ? 'Owner / Creator' : 'Editor'}
-                            </span>
+                            {isPending ? (
+                              <span className="team-role-badge" style={{ background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
+                                ✉️ Pending Verification
+                              </span>
+                            ) : (
+                              <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>
+                                {isMemberCreator ? 'Owner / Creator' : 'Editor'}
+                              </span>
+                            )}
                             {isCreator && !isMemberCreator && m._id && (
                               <button
                                 type="button"
@@ -213,9 +225,9 @@ export default function Teams() {
                                   cursor: "pointer"
                                 }}
                                 onClick={() => handleRemoveMember(group._id, m._id, m.username || m.email)}
-                                title="Remove member from group"
+                                title="Remove member or cancel invitation"
                               >
-                                Remove
+                                {isPending ? "Cancel Invite" : "Remove"}
                               </button>
                             )}
                           </div>

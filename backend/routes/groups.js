@@ -93,7 +93,44 @@ router.post("/", async (req, res) => {
   }
 });
 
-// POST /api/groups/:id/members - Add a member to a group (by username or email)
+const { sendGroupInvitationEmail } = require("../mailer");
+
+// POST /api/groups/accept-invite - Accept team group member invitation via token
+router.post("/accept-invite", async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    const inviteToken = (token || "").trim();
+
+    if (!inviteToken) {
+      return res.status(400).json({ message: "Invitation token is required." });
+    }
+
+    const group = await Group.findOne({ "members.inviteToken": inviteToken });
+    if (!group) {
+      return res.status(404).json({ message: "Invalid or expired invitation token." });
+    }
+
+    const member = group.members.find((m) => m.inviteToken === inviteToken);
+    if (!member) {
+      return res.status(404).json({ message: "Invitation member record not found." });
+    }
+
+    member.status = "accepted";
+    member.inviteToken = undefined;
+    await group.save();
+
+    res.status(200).json({
+      message: `Invitation accepted successfully! You are now an active member of group "${group.name}".`,
+      groupName: group.name,
+      username: member.username
+    });
+  } catch (error) {
+    console.error("Error accepting group invitation:", error);
+    res.status(500).json({ message: "Error accepting invitation: " + error.message });
+  }
+});
+
+// POST /api/groups/:id/members - Add a member to a group (by username or email) and send invitation email
 router.post("/:id/members", async (req, res) => {
   try {
     const { username, email, identifier, role } = req.body;
@@ -127,24 +164,39 @@ router.post("/:id/members", async (req, res) => {
     );
 
     if (existingMember) {
-      return res.status(409).json({ message: `User "${finalUsername}" is already a member of this group.` });
+      return res.status(409).json({ message: `User "${finalUsername}" is already a member (or has a pending invitation) in this group.` });
     }
 
+    const inviteToken = crypto.randomBytes(24).toString("hex");
     const memberRole = role === "creator" ? "creator" : "editor";
 
     group.members.push({
       username: finalUsername,
       email: finalEmail,
       role: memberRole,
+      status: "pending",
+      inviteToken: inviteToken,
       joinedAt: new Date()
     });
 
     await group.save();
 
+    // Construct accept verification URL
+    const requestHeaderOrigin = req.get("origin") || req.get("referer") || "http://localhost:5173";
+    const cleanOrigin = requestHeaderOrigin.replace(/\/+$/, "").replace(/\/teams.*$/, "");
+    const acceptUrl = `${cleanOrigin}/accept-invite?token=${inviteToken}`;
+
+    if (finalEmail) {
+      await sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl);
+    }
+
     const resObj = group.toObject();
     delete resObj.groupId;
 
-    res.status(200).json({ message: `Member ${finalUsername} added successfully`, group: resObj });
+    res.status(200).json({
+      message: `Invitation email sent to ${finalEmail || finalUsername}. They will become an active member upon accepting the invitation.`,
+      group: resObj
+    });
   } catch (error) {
     console.error("Error adding member to group:", error);
     res.status(500).json({ message: "Error adding member: " + error.message });

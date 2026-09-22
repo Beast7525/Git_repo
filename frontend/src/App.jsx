@@ -12,6 +12,7 @@ import Layout from "./Pages/Layout";
 import ForgotPassword from "./Pages/ForgotPassword";
 import Repository from "./Pages/Repostiory";
 import Teams from "./Pages/Teams";
+import AcceptInvite from "./Pages/AcceptInvite";
 import AdminDashboard from "./Pages/admin/AdminDashboard";
 import AdminLogin from "./Pages/admin/AdminLogin";
 import Profile from "./Pages/Profile";
@@ -32,6 +33,7 @@ function App() {
         <Route path="/ForgotPassword" element={<ForgotPassword />} />
         <Route path="/Repository" element={<Repository />} />
         <Route path="/teams" element={<Teams />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/All_Repository" element={<All_Repository />} />

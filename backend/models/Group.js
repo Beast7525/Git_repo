@@ -8,6 +8,12 @@ const memberSchema = new mongoose.Schema({
     enum: ["creator", "editor"], 
     default: "editor" 
   },
+  status: {
+    type: String,
+    enum: ["pending", "accepted"],
+    default: "accepted"
+  },
+  inviteToken: { type: String },
   joinedAt: { type: Date, default: Date.now }
 }, { _id: true });
 
