@@ -163,11 +163,36 @@ router.post("/:id/members", async (req, res) => {
              (finalEmail && m.email && m.email.toLowerCase() === finalEmail.toLowerCase())
     );
 
+    let inviteToken = crypto.randomBytes(24).toString("hex");
+
     if (existingMember) {
-      return res.status(409).json({ message: `User "${finalUsername}" is already a member (or has a pending invitation) in this group.` });
+      if (existingMember.status === "pending") {
+        // Refresh token and resend invitation email
+        existingMember.inviteToken = inviteToken;
+        if (finalEmail) existingMember.email = finalEmail;
+        await group.save();
+
+        const requestHeaderOrigin = req.get("origin") || req.get("referer") || "http://localhost:5173";
+        const cleanOrigin = requestHeaderOrigin.replace(/\/+$/, "").replace(/\/teams.*$/, "");
+        const acceptUrl = `${cleanOrigin}/accept-invite?token=${inviteToken}`;
+
+        if (finalEmail) {
+          sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl)
+            .catch(err => console.error("❌ Background email error:", err));
+        }
+
+        const resObj = group.toObject();
+        delete resObj.groupId;
+
+        return res.status(200).json({
+          message: `Invitation email re-sent to ${finalEmail || finalUsername}.`,
+          group: resObj
+        });
+      }
+
+      return res.status(409).json({ message: `User "${finalUsername}" is already an active member of this group.` });
     }
 
-    const inviteToken = crypto.randomBytes(24).toString("hex");
     const memberRole = role === "creator" ? "creator" : "editor";
 
     group.members.push({
@@ -187,7 +212,9 @@ router.post("/:id/members", async (req, res) => {
     const acceptUrl = `${cleanOrigin}/accept-invite?token=${inviteToken}`;
 
     if (finalEmail) {
-      await sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl);
+      // Fire-and-forget email dispatch so HTTP response returns instantly without blocking on SMTP latency
+      sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl)
+        .catch(err => console.error("❌ Background email error:", err));
     }
 
     const resObj = group.toObject();
