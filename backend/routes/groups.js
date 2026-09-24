@@ -157,6 +157,12 @@ router.post("/:id/members", async (req, res) => {
     const finalUsername = foundUser ? foundUser.username : (targetInput.includes("@") ? targetInput.split("@")[0] : targetInput);
     const finalEmail = foundUser ? foundUser.gmail : (targetInput.includes("@") ? targetInput : (email || ""));
 
+    if (!finalEmail) {
+      return res.status(400).json({
+        message: `No registered email address found for "${targetInput}". Please enter a valid email address (e.g., name@gmail.com) so the invitation email can be sent.`
+      });
+    }
+
     // Check if user is already a member
     const existingMember = group.members.find(
       (m) => m.username.toLowerCase() === finalUsername.toLowerCase() ||
