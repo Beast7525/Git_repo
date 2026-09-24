@@ -178,6 +178,16 @@ function RepoDetail() {
   const [creatingBranch, setCreatingBranch] = useState(false);
   const [branchError, setBranchError] = useState("");
 
+  // Branch Merge (Pull) States
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSource, setMergeSource] = useState("");
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergeMessage, setMergeMessage] = useState("");
+  const [mergeError, setMergeError] = useState(false);
+  const [pendingConflicts, setPendingConflicts] = useState([]);
+  const [addedFilesList, setAddedFilesList] = useState([]);
+  const [resolutions, setResolutions] = useState({});
+
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
@@ -645,6 +655,102 @@ function RepoDetail() {
       setBranchError(err.message || "Failed to create branch.");
     } finally {
       setCreatingBranch(false);
+    }
+  }
+
+  async function refreshRepoDetails() {
+    const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`);
+    if (res.ok) {
+      const data = await res.json();
+      setRepo(data);
+    }
+  }
+
+  function openMergeModal() {
+    setPendingConflicts([]);
+    setAddedFilesList([]);
+    setResolutions({});
+    setMergeMessage("");
+    setMergeError(false);
+    const targetLabel = (repo.defaultBranch || "main").toLowerCase();
+    const candidates = repoBranches.filter((b) => b.toLowerCase() !== targetLabel);
+    setMergeSource(candidates[0] || repoBranches[0] || "");
+    setShowMergeModal(true);
+  }
+
+  async function handleMergeBranches() {
+    if (!mergeSource) return;
+    setMergeLoading(true);
+    setMergeMessage("");
+    setMergeError(false);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceBranch: mergeSource, targetBranch: repo.defaultBranch || "main" })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || res.statusText);
+      }
+
+      setAddedFilesList(data.addedFiles || []);
+
+      if (data.conflicts && data.conflicts.length > 0) {
+        setPendingConflicts(data.conflicts);
+        const defaults = {};
+        data.conflicts.forEach((c) => { defaults[c.path] = "theirs"; });
+        setResolutions(defaults);
+      } else {
+        setPendingConflicts([]);
+        await runMergeResolution([]);
+      }
+    } catch (err) {
+      console.error("Merge error:", err);
+      setMergeError(true);
+      setMergeMessage(err.message || "Merge failed.");
+    } finally {
+      setMergeLoading(false);
+    }
+  }
+
+  async function runMergeResolution(resolutionList) {
+    setMergeLoading(true);
+    setMergeMessage("");
+    setMergeError(false);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/merge/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceBranch: mergeSource,
+          targetBranch: repo.defaultBranch || "main",
+          resolutions: resolutionList
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || res.statusText);
+      }
+
+      setPendingConflicts([]);
+      setResolutions({});
+      setMergeMessage(data.message || "Merge completed successfully.");
+      await refreshRepoDetails();
+      setTimeout(() => {
+        setMergeMessage("");
+        setShowMergeModal(false);
+      }, 2600);
+    } catch (err) {
+      console.error("Resolve merge error:", err);
+      setMergeError(true);
+      setMergeMessage(err.message || "Failed to complete the merge.");
+    } finally {
+      setMergeLoading(false);
     }
   }
 
@@ -1141,6 +1247,16 @@ function RepoDetail() {
                           ))}
                           <option value="__NEW_BRANCH__">+ Create New Branch...</option>
                         </select>
+                        <button
+                          className="gh-btn"
+                          style={{ fontSize: "12px", padding: "6px 10px" }}
+                          type="button"
+                          onClick={openMergeModal}
+                          disabled={repoBranches.length < 2}
+                          title={repoBranches.length < 2 ? "Create at least one other branch to merge" : `Pull a branch into ${repo.defaultBranch || "main"}`}
+                        >
+                          Merge into {repo.defaultBranch || "main"}
+                        </button>
                         <button
                           className="gh-btn"
                           style={{ fontSize: "12px", padding: "6px 10px" }}
@@ -1712,6 +1828,205 @@ function RepoDetail() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Branch into Target Modal */}
+      {showMergeModal && (
+        <div className="gh-upload-modal-backdrop" onClick={() => setShowMergeModal(false)}>
+          <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "680px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "10px" }}>
+              <h3 style={{ margin: 0, color: "#ffffff" }}>Merge Branch into {repo.defaultBranch || "main"}</h3>
+              <button
+                style={{ background: "none", border: "none", color: "#9eafa3", fontSize: "1.2rem", cursor: "pointer" }}
+                onClick={() => setShowMergeModal(false)}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", color: "var(--repo-text)", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                Source Branch
+              </label>
+              <select
+                className="gh-modal-input"
+                value={mergeSource}
+                onChange={(e) => setMergeSource(e.target.value)}
+                disabled={pendingConflicts.length > 0}
+              >
+                {repoBranches
+                  .filter((b) => b.toLowerCase() !== (repo.defaultBranch || "main").toLowerCase())
+                  .map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+              </select>
+              <p style={{ fontSize: "0.82rem", color: "var(--repo-text-soft)", margin: "8px 0 0" }}>
+                Pulls the files from "{mergeSource || "the selected branch"}" into {repo.defaultBranch || "main"}. Files that changed in both branches
+                will ask you how to resolve the conflict.
+              </p>
+            </div>
+
+            {pendingConflicts.length === 0 && (
+              <button
+                type="button"
+                className="gh-btn gh-btn-green"
+                disabled={mergeLoading || !mergeSource}
+                onClick={handleMergeBranches}
+              >
+                {mergeLoading ? "Checking branches..." : "Merge / Pull"}
+              </button>
+            )}
+
+            {addedFilesList.length > 0 && pendingConflicts.length === 0 && (
+              <div style={{ fontSize: "0.85rem", color: "#a7dda6", marginTop: "10px" }}>
+                {addedFilesList.length} new file(s) from "{mergeSource}" will be added to {repo.defaultBranch || "main"}.
+              </div>
+            )}
+
+            {mergeMessage && (
+              <div
+                style={{
+                  marginTop: "14px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: mergeError ? "var(--repo-error)" : "var(--repo-success)"
+                }}
+              >
+                {mergeMessage}
+              </div>
+            )}
+
+            {pendingConflicts.length > 0 && (
+              <div style={{ marginTop: "16px", borderTop: "1px solid var(--repo-line)", paddingTop: "14px", maxHeight: "440px", overflowY: "auto" }}>
+                <h4 style={{ color: "#ffffff", margin: "0 0 4px" }}>Resolve {pendingConflicts.length} Merge Conflict(s)</h4>
+                <p style={{ fontSize: "0.82rem", color: "var(--repo-text-soft)", margin: "0 0 14px" }}>
+                  For each file, keep the previous version ({repo.defaultBranch || "main"}), use the new version ({mergeSource}), or combine both.
+                </p>
+
+                {pendingConflicts.map((c) => (
+                  <div
+                    key={c.path}
+                    style={{
+                      border: "1px solid var(--repo-line)",
+                      borderRadius: "8px",
+                      padding: "14px",
+                      marginBottom: "12px",
+                      background: "var(--repo-panel-soft)"
+                    }}
+                  >
+                    <strong style={{ color: "#e4bd71", fontSize: "0.9rem", display: "block", marginBottom: "8px" }}>
+                      {c.path}
+                    </strong>
+
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "10px", fontSize: "13px" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", color: "var(--repo-text)" }}>
+                        <input
+                          type="radio"
+                          name={`res-${c.path}`}
+                          checked={(resolutions[c.path] || "theirs") === "ours"}
+                          onChange={() => setResolutions((prev) => ({ ...prev, [c.path]: "ours" }))}
+                        />
+                        Keep previous ({repo.defaultBranch || "main"})
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", color: "var(--repo-text)" }}>
+                        <input
+                          type="radio"
+                          name={`res-${c.path}`}
+                          checked={(resolutions[c.path] || "theirs") === "theirs"}
+                          onChange={() => setResolutions((prev) => ({ ...prev, [c.path]: "theirs" }))}
+                        />
+                        Use new ({mergeSource})
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", color: "var(--repo-text)" }}>
+                        <input
+                          type="radio"
+                          name={`res-${c.path}`}
+                          checked={(resolutions[c.path] || "theirs") === "combine"}
+                          onChange={() => setResolutions((prev) => ({ ...prev, [c.path]: "combine" }))}
+                        />
+                        Combine both
+                      </label>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "0.75rem", color: "#9eafa3", fontWeight: 700, marginBottom: "4px" }}>
+                          PREVIOUS ({repo.defaultBranch || "main"})
+                        </div>
+                        <pre
+                          style={{
+                            margin: 0,
+                            fontSize: "0.75rem",
+                            maxHeight: "160px",
+                            overflow: "auto",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            background: "#0d1711",
+                            border: "1px solid var(--repo-line)",
+                            borderRadius: "6px",
+                            padding: "10px",
+                            color: "#e7f1e5"
+                          }}
+                        >
+                          {c.ours || "(binary/unreadable)"}
+                        </pre>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "0.75rem", color: "#9eafa3", fontWeight: 700, marginBottom: "4px" }}>
+                          NEW ({mergeSource})
+                        </div>
+                        <pre
+                          style={{
+                            margin: 0,
+                            fontSize: "0.75rem",
+                            maxHeight: "160px",
+                            overflow: "auto",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            background: "#0d1711",
+                            border: "1px solid var(--repo-line)",
+                            borderRadius: "6px",
+                            padding: "10px",
+                            color: "#e7f1e5"
+                          }}
+                        >
+                          {c.theirs || "(binary/unreadable)"}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "14px", borderTop: "1px solid var(--repo-line)", paddingTop: "14px" }}>
+                  <button
+                    type="button"
+                    className="gh-btn"
+                    onClick={() => {
+                      setPendingConflicts([]);
+                      setMergeMessage("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="gh-btn gh-btn-green"
+                    disabled={mergeLoading}
+                    onClick={() =>
+                      runMergeResolution(
+                        Object.keys(resolutions).map((path) => ({ path, strategy: resolutions[path] || "theirs" }))
+                      )
+                    }
+                  >
+                    {mergeLoading ? "Completing merge..." : "Complete Merge"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

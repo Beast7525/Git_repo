@@ -11,6 +11,21 @@ const mailTransport = nodemailer.createTransport({
   },
 });
 
+async function sendWithRetry(mailOptions, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await mailTransport.sendMail(mailOptions);
+      return true;
+    } catch (err) {
+      const isLast = attempt === retries;
+      console.error(`❌ Email send attempt ${attempt}/${retries} failed:`, err.message);
+      if (isLast) return false;
+      await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+    }
+  }
+  return false;
+}
+
 async function sendSuspensionEmail(toEmail, username, reason, durationDays, untilDate) {
   if (!mailUser || !mailPassword) {
     console.warn("⚠️ Mail credentials not configured. Skipping suspension email.");
@@ -42,13 +57,14 @@ async function sendSuspensionEmail(toEmail, username, reason, durationDays, unti
   `;
 
   try {
-    await mailTransport.sendMail({
+    const ok = await sendWithRetry({
       from: `Gitrepo Admin <${mailUser}>`,
       to: toEmail,
       subject: subject,
       text: textBody,
       html: htmlBody,
     });
+    if (!ok) return false;
     console.log(`✉️ Suspension email sent successfully to ${toEmail}`);
     return true;
   } catch (err) {
@@ -95,13 +111,14 @@ async function sendGroupInvitationEmail(toEmail, memberUsername, groupName, crea
   `;
 
   try {
-    await mailTransport.sendMail({
+    const ok = await sendWithRetry({
       from: `Gitrepo Team <${mailUser}>`,
       to: toEmail,
       subject: subject,
       text: textBody,
       html: htmlBody,
     });
+    if (!ok) return false;
     console.log(`✉️ Group invitation email sent successfully to ${toEmail}`);
     return true;
   } catch (err) {

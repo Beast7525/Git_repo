@@ -1,16 +1,15 @@
 /* =========================================================
-   Claymorphism Design System - Colorful Pastel Reference Theme
-   Palette: Lavender Purple, Coral Peach, Mint Green, Sky Blue, Soft Yellow
+   User Profile - Dark Page Background with Light Cards (Vice Versa)
    ========================================================= */
 
 .user_profile_page {
   min-height: 100vh;
   width: 100%;
-  background: #f7f4fc;
+  background: #0f172a;
   padding-bottom: 60px;
   box-sizing: border-box;
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #2d2454;
+  color: #0f172a;
 }
 
 .clay_profile_wrapper {
@@ -22,27 +21,25 @@
 
 .profile_card_layout {
   display: flex;
-  gap: 28px;
+  gap: 24px;
   justify-content: center;
   align-items: stretch;
 }
 
-/* Base Lavender Clay Card */
+/* Light Card on Dark Background (No Box Shadow) */
 .clay_card {
-  background: linear-gradient(145deg, #eae0ff, #d8cbfa);
-  border-radius: 30px;
-  box-shadow: 16px 16px 32px #c9b9eb,
-              -16px -16px 32px #ffffff,
-              inset 4px 4px 8px rgba(255, 255, 255, 0.8),
-              inset -4px -4px 8px rgba(150, 120, 220, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  padding: 36px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: none !important;
+  border: 1px solid #e2e8f0;
+  padding: 32px;
   box-sizing: border-box;
+  color: #0f172a;
 }
 
-/* Left Sidebar Box - Soft Lavender Clay */
+/* Left Sidebar Box */
 .box_user_profile {
-  width: 320px;
+  width: 300px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -51,57 +48,45 @@
   flex-shrink: 0;
 }
 
-/* Mint Green Avatar Frame */
+/* Avatar Image (No Box Shadow) */
 .profile_img.clay_avatar {
-  width: 165px;
-  height: 165px;
+  width: 160px;
+  height: 160px;
   object-fit: cover;
   border-radius: 50%;
-  background: linear-gradient(145deg, #c7f7e2, #a5e6ca);
-  box-shadow: 12px 12px 24px #beafdf,
-              -12px -12px 24px #ffffff,
-              inset 4px 4px 8px rgba(255, 255, 255, 0.9),
-              inset -4px -4px 8px rgba(50, 160, 110, 0.25);
-  border: 6px solid #d9f9ed;
-  margin-bottom: 28px;
+  background: #f8fafc;
+  box-shadow: none !important;
+  border: 3px solid #2563eb;
+  margin-bottom: 24px;
 }
 
-/* Clay Buttons */
+/* Flat Buttons (No Box Shadow) */
 .clay_btn {
-  padding: 13px 26px;
-  border-radius: 22px;
+  padding: 12px 24px;
+  border-radius: 10px;
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   border: none;
   outline: none;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: none !important;
+  transition: background 0.2s ease, transform 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  letter-spacing: 0.3px;
 }
 
-/* Coral / Peach Primary Clay Button */
 .primary_clay {
-  background: linear-gradient(145deg, #ff9b8a, #ff7663);
+  background: #2563eb;
   color: #ffffff;
-  box-shadow: 8px 8px 18px rgba(255, 118, 99, 0.4),
-              -8px -8px 18px #ffffff,
-              inset 3px 3px 6px rgba(255, 255, 255, 0.5);
 }
 
 .primary_clay:hover {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 10px 10px 22px rgba(255, 118, 99, 0.5),
-              -10px -10px 22px #ffffff,
-              inset 3px 3px 6px rgba(255, 255, 255, 0.6);
+  background: #1d4ed8;
 }
 
 .primary_clay:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: inset 4px 4px 8px rgba(180, 50, 30, 0.3),
-              inset -4px -4px 8px rgba(255, 255, 255, 0.4);
+  transform: scale(0.98);
 }
 
 /* Right Main Info Card */
@@ -109,46 +94,39 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .user_box h1 {
-  margin: 0 0 8px;
-  font-size: 2.3rem;
-  font-weight: 800;
-  color: #261b4d;
+  margin: 0 0 10px;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #0f172a;
   letter-spacing: -0.5px;
 }
 
-/* Detail Items with Soft Sky Blue & Mint Inset Clay */
+/* Light Detail Items (No Box Shadow) */
 .profile_detail_item {
   display: flex;
   align-items: center;
-  padding: 14px 20px;
-  background: linear-gradient(145deg, #e4efff, #d5e5ff);
-  border-radius: 20px;
-  box-shadow: inset 4px 4px 8px #becee8,
-              inset -4px -4px 8px #ffffff;
-  font-size: 0.96rem;
-  color: #272250;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-}
-
-.profile_detail_item:nth-child(even) {
-  background: linear-gradient(145deg, #e0faf0, #cefae7);
-  box-shadow: inset 4px 4px 8px #b9e8d4,
-              inset -4px -4px 8px #ffffff;
+  padding: 12px 18px;
+  background: #f8fafc;
+  border-radius: 10px;
+  box-shadow: none !important;
+  font-size: 0.95rem;
+  color: #334155;
+  border: 1px solid #e2e8f0;
 }
 
 .profile_detail_item strong {
   width: 120px;
-  color: #1e1743;
-  font-weight: 700;
+  color: #2563eb;
+  font-weight: 600;
   flex-shrink: 0;
 }
 
 /* =========================================
-   EDIT PROFILE CLAY FORM
+   EDIT PROFILE FORM
 ========================================= */
 
 .edit_profile_container {
@@ -157,76 +135,71 @@
 }
 
 .edit_profile_container h2 {
-  margin: 0 0 24px;
-  font-size: 1.9rem;
-  color: #261b4d;
-  font-weight: 800;
+  margin: 0 0 20px;
+  font-size: 1.8rem;
+  color: #0f172a;
+  font-weight: 700;
 }
 
 .edit_profile_image {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .edit_profile_img.clay_avatar {
-  width: 135px;
-  height: 135px;
+  width: 130px;
+  height: 130px;
   border-radius: 50%;
   object-fit: cover;
-  margin: 0 auto 16px;
-  background: linear-gradient(145deg, #c7f7e2, #a5e6ca);
-  box-shadow: 10px 10px 20px #beafdf,
-              -10px -10px 20px #ffffff,
-              inset 3px 3px 6px rgba(255, 255, 255, 0.9);
-  border: 5px solid #d9f9ed;
+  margin: 0 auto 14px;
+  box-shadow: none !important;
+  border: 3px solid #2563eb;
 }
 
 .change_photo_btn.clay_btn {
-  background: linear-gradient(145deg, #9bb0ff, #7e99ff);
+  background: #2563eb;
   color: #ffffff !important;
-  box-shadow: 6px 6px 14px rgba(126, 153, 255, 0.4),
-              -6px -6px 14px #ffffff,
-              inset 2px 2px 4px rgba(255, 255, 255, 0.5);
+}
+
+.change_photo_btn.clay_btn:hover {
+  background: #1d4ed8;
 }
 
 .edit_profile_container label {
   display: block;
-  margin-top: 18px;
-  margin-bottom: 8px;
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: #3b2e6b;
+  margin-top: 16px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-/* Inset Clay Form Fields */
+/* Inputs (No Box Shadow) */
 .clay_input {
   width: 100%;
-  padding: 13px 18px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
   outline: none;
   font-size: 0.95rem;
-  background: linear-gradient(145deg, #e4efff, #d8e7ff);
-  color: #1e1743;
-  box-shadow: inset 4px 4px 8px #bfcde4,
-              inset -4px -4px 8px #ffffff;
+  background: #f8fafc;
+  color: #0f172a;
+  box-shadow: none !important;
   box-sizing: border-box;
-  transition: all 0.25s ease;
-  font-weight: 500;
+  transition: border-color 0.2s ease;
 }
 
 .clay_input.disabled {
   opacity: 0.7;
   cursor: not-allowed;
+  background: #f1f5f9;
 }
 
 .clay_input:focus {
-  background: linear-gradient(145deg, #edf4ff, #e0eeff);
-  box-shadow: inset 5px 5px 10px #b2c2de,
-              inset -5px -5px 10px #ffffff,
-              0 0 0 3px rgba(126, 153, 255, 0.3);
+  border-color: #2563eb;
+  background: #ffffff;
 }
 
 textarea.clay_input {
@@ -237,7 +210,7 @@ textarea.clay_input {
 .edit_profile_container small {
   display: block;
   margin-top: 6px;
-  color: #655694;
+  color: #64748b;
   font-size: 0.82rem;
 }
 
@@ -248,55 +221,45 @@ textarea.clay_input {
   cursor: pointer;
   text-transform: none !important;
   font-size: 0.92rem !important;
+  color: #334155 !important;
 }
 
 .checkbox_label input {
   width: auto !important;
-  accent-color: #ff7663;
+  accent-color: #2563eb;
 }
 
 .edit_profile_container h3 {
-  margin-top: 32px;
-  margin-bottom: 14px;
-  font-size: 1.25rem;
-  color: #261b4d;
-  font-weight: 800;
+  margin-top: 28px;
+  margin-bottom: 12px;
+  font-size: 1.2rem;
+  color: #0f172a;
+  font-weight: 700;
 }
 
 .edit_buttons {
   display: flex;
-  gap: 14px;
-  margin-top: 28px;
+  gap: 12px;
+  margin-top: 24px;
 }
 
-/* Mint Green Clay Save Button */
 .success_clay {
-  background: linear-gradient(145deg, #a4f5d3, #7ee6b9);
-  color: #0f4c33;
-  box-shadow: 6px 6px 14px rgba(126, 230, 185, 0.5),
-              -6px -6px 14px #ffffff,
-              inset 2px 2px 4px rgba(255, 255, 255, 0.6);
+  background: #16a34a;
+  color: #ffffff;
 }
 
 .success_clay:hover {
-  transform: translateY(-2px);
-  box-shadow: 8px 8px 18px rgba(126, 230, 185, 0.6),
-              -8px -8px 18px #ffffff;
+  background: #15803d;
 }
 
-/* Soft Yellow Clay Cancel Button */
 .cancel_clay {
-  background: linear-gradient(145deg, #fff1b8, #ffe285);
-  color: #5c4300;
-  box-shadow: 6px 6px 14px rgba(255, 226, 133, 0.5),
-              -6px -6px 14px #ffffff,
-              inset 2px 2px 4px rgba(255, 255, 255, 0.6);
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .cancel_clay:hover {
-  transform: translateY(-2px);
-  box-shadow: 8px 8px 18px rgba(255, 226, 133, 0.6),
-              -8px -8px 18px #ffffff;
+  background: #cbd5e1;
+  color: #0f172a;
 }
 
 /* Responsive Stacking */

@@ -25,6 +25,84 @@ function flexibleIdentityRegex(value) {
   return parts.length ? new RegExp(`^${parts.join("[\\s\\-_]+")}$`, "i") : null;
 }
 
+// ===== Branch merge (pull) helpers =====
+async function resolveRepoByOwnerName(owner, repoName) {
+  const ownerRegex = flexibleIdentityRegex(owner);
+  const repoRegex = new RegExp(`^${escapeRegex(repoName.trim())}$`, "i");
+  const ownerConditions = ownerRegex ? [{ owner: ownerRegex }] : [];
+  const matchingUser = ownerRegex ? await User.findOne({ username: ownerRegex }).select("gmail") : null;
+  if (matchingUser?.gmail) {
+    ownerConditions.push({ ownerEmail: new RegExp(`^${escapeRegex(matchingUser.gmail)}$`, "i") });
+  }
+
+  let repo = await Repo.findOne({
+    $and: [
+      { $or: ownerConditions.length ? ownerConditions : [{ owner: new RegExp(`^${escapeRegex(owner)}$`, "i") }] },
+      { $or: [{ name: repoRegex }, { repositoryName: repoRegex }] }
+    ]
+  });
+
+  if (!repo) {
+    repo = await Repo.findOne({ $or: [{ name: repoRegex }, { repositoryName: repoRegex }] });
+  }
+  return repo || null;
+}
+
+async function fetchFileText(repo, fileObj) {
+  if (!fileObj) return null;
+  if (typeof fileObj.content === "string" && fileObj.content.length > 0) return fileObj.content;
+
+  if (repo.storagePath && fileObj.path) {
+    try {
+      const safePath = path.normalize(fileObj.path).replace(/^(\.\.[\/\\])+/, "");
+      const fullPath = path.resolve(repo.storagePath, safePath);
+      if (fullPath.startsWith(path.resolve(repo.storagePath))) {
+        return await fs.readFile(fullPath, "utf-8");
+      }
+    } catch (_) {}
+  }
+
+  if (fileObj.b2Url) {
+    try {
+      const resp = await fetch(fileObj.b2Url);
+      if (resp.ok) return await resp.text();
+    } catch (_) {}
+  }
+
+  if (fileObj.b2FileName) {
+    try {
+      await authorizeB2();
+      const bucketName = process.env.B2_BUCKET_NAME || "GitRepo";
+      const resp = await b2.downloadFileByName({ bucketName, fileName: fileObj.b2FileName, responseType: "text" });
+      if (resp && resp.data) {
+        return typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data, null, 2);
+      }
+    } catch (_) {}
+  }
+
+  return null;
+}
+
+function isConflictedContent(ours, theirs, ourSize, theirSize) {
+  const oursKnown = ours !== null;
+  const theirsKnown = theirs !== null;
+  if (oursKnown && theirsKnown) return ours !== theirs;
+  return (ourSize || 0) !== (theirSize || 0);
+}
+
+function buildBranchFileMaps(repo, targetBranch, sourceBranch) {
+  const files = repo.files || [];
+  const defaultBranch = repo.defaultBranch || "main";
+  const targetMap = new Map();
+  const sourceMap = new Map();
+  for (const f of files) {
+    const b = (f.branch || defaultBranch).toLowerCase();
+    if (b === targetBranch.toLowerCase()) targetMap.set(f.path, f);
+    else if (b === sourceBranch.toLowerCase()) sourceMap.set(f.path, f);
+  }
+  return { targetMap, sourceMap };
+}
+
 // GET /api/repos
 router.get("/", async (req, res) => {
   try {
@@ -1106,6 +1184,184 @@ router.post("/find/:owner/:repoName/issues", async (req, res) => {
   } catch (error) {
     console.error("Error creating repository issue:", error);
     res.status(500).json({ message: "Error creating repository issue: " + error.message });
+  }
+});
+
+// POST /api/repos/find/:owner/:repoName/merge - Analyze pulling a source branch into the target branch
+router.post("/find/:owner/:repoName/merge", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { sourceBranch, targetBranch } = req.body || {};
+
+    const repo = await resolveRepoByOwnerName(owner, repoName);
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    const defaultBranch = repo.defaultBranch || "main";
+    const target = (typeof targetBranch === "string" && targetBranch.trim()) ? targetBranch.trim() : defaultBranch;
+    const source = (typeof sourceBranch === "string" && sourceBranch.trim()) ? sourceBranch.trim() : "";
+
+    if (!source) {
+      return res.status(400).json({ message: "Source branch is required." });
+    }
+    if (source.toLowerCase() === target.toLowerCase()) {
+      return res.status(400).json({ message: "Source and target branches must be different." });
+    }
+
+    const branches = repo.branches && repo.branches.length ? repo.branches : [defaultBranch];
+    if (!branches.some((b) => b.toLowerCase() === source.toLowerCase())) {
+      return res.status(404).json({ message: `Source branch "${source}" not found.` });
+    }
+    if (!branches.some((b) => b.toLowerCase() === target.toLowerCase())) {
+      return res.status(404).json({ message: `Target branch "${target}" not found.` });
+    }
+
+    const { targetMap, sourceMap } = buildBranchFileMaps(repo, target, source);
+    const allPaths = new Set([...targetMap.keys(), ...sourceMap.keys()]);
+
+    const conflicts = [];
+    const addedFiles = [];
+    let identicalCount = 0;
+
+    for (const p of allPaths) {
+      const t = targetMap.get(p);
+      const s = sourceMap.get(p);
+      if (!t) {
+        addedFiles.push(p);
+        continue;
+      }
+      if (!s) {
+        identicalCount++;
+        continue;
+      }
+      const ours = await fetchFileText(repo, t);
+      const theirs = await fetchFileText(repo, s);
+      if (isConflictedContent(ours, theirs, t.size, s.size)) {
+        conflicts.push({ path: p, ours, theirs, ourSize: t.size || 0, theirSize: s.size || 0 });
+      } else {
+        identicalCount++;
+      }
+    }
+
+    res.status(200).json({
+      sourceBranch: source,
+      targetBranch: target,
+      conflicts,
+      addedFiles,
+      identicalCount,
+      conflictCount: conflicts.length,
+      addedCount: addedFiles.length,
+      message: conflicts.length
+        ? `${conflicts.length} file(s) have merge conflicts. Choose how to resolve each one to complete the merge.`
+        : addedFiles.length
+          ? `Ready to merge: ${addedFiles.length} new file(s) from "${source}" will be added to "${target}".`
+          : `Branches "${source}" and "${target}" are already in sync with no changes to merge.`
+    });
+  } catch (error) {
+    console.error("Error merging branches:", error);
+    res.status(500).json({ message: "Error merging branches: " + error.message });
+  }
+});
+
+// POST /api/repos/find/:owner/:repoName/merge/resolve - Apply conflict resolutions and complete the merge
+router.post("/find/:owner/:repoName/merge/resolve", async (req, res) => {
+  try {
+    const { owner, repoName } = req.params;
+    const { sourceBranch, targetBranch, resolutions } = req.body || {};
+
+    const repo = await resolveRepoByOwnerName(owner, repoName);
+    if (!repo) {
+      return res.status(404).json({ message: "Repository not found." });
+    }
+
+    const defaultBranch = repo.defaultBranch || "main";
+    const target = (typeof targetBranch === "string" && targetBranch.trim()) ? targetBranch.trim() : defaultBranch;
+    const source = (typeof sourceBranch === "string" && sourceBranch.trim()) ? sourceBranch.trim() : "";
+
+    if (!source || source.toLowerCase() === target.toLowerCase()) {
+      return res.status(400).json({ message: "A valid source branch different from the target is required." });
+    }
+
+    const resolutionMap = new Map();
+    for (const r of Array.isArray(resolutions) ? resolutions : []) {
+      if (r && r.path && ["ours", "theirs", "combine"].includes(r.strategy)) {
+        resolutionMap.set(r.path, r.strategy);
+      }
+    }
+
+    const { targetMap, sourceMap } = buildBranchFileMaps(repo, target, source);
+    const allPaths = new Set([...targetMap.keys(), ...sourceMap.keys()]);
+
+    let addedCount = 0;
+    let conflictedCount = 0;
+    const resolvedPaths = [];
+
+    for (const p of allPaths) {
+      const t = targetMap.get(p);
+      const s = sourceMap.get(p);
+
+      if (!t) {
+        const copy = { ...s, branch: target };
+        copy.content = typeof s.content === "string" ? s.content : (await fetchFileText(repo, s)) || "";
+        copy.size = copy.content ? Buffer.byteLength(copy.content, "utf-8") : (s.size || 0);
+        repo.files.push(copy);
+        resolvedPaths.push(p);
+        addedCount++;
+        continue;
+      }
+      if (!s) continue;
+
+      const theirs = await fetchFileText(repo, s);
+      const ours = typeof t.content === "string" && t.content.length ? t.content : await fetchFileText(repo, t);
+
+      if (!isConflictedContent(ours, theirs, t.size, s.size)) continue;
+
+      const strategy = resolutionMap.get(p) || "ours";
+      let finalContent = ours;
+      if (strategy === "theirs") {
+        finalContent = theirs;
+      } else if (strategy === "combine") {
+        finalContent = `${ours || ""}${theirs ? `\n${theirs}` : ""}`;
+      }
+
+      t.content = finalContent || "";
+      t.size = finalContent ? Buffer.byteLength(finalContent, "utf-8") : 0;
+      resolvedPaths.push(p);
+      conflictedCount++;
+    }
+
+    if (resolvedPaths.length === 0) {
+      return res.status(200).json({
+        message: `Branches "${source}" and "${target}" are already in sync. No merge needed.`,
+        repo
+      });
+    }
+
+    const mergeHash = Math.random().toString(36).substring(2, 9);
+    const mergeMsg = `Merge branch '${source}' into '${target}'`;
+
+    repo.commits = (repo.commits || 0) + 1;
+    repo.lastCommit = { hash: mergeHash, message: mergeMsg, branch: target, committedAt: new Date() };
+    repo.commitHistory = repo.commitHistory || [];
+    repo.commitHistory.unshift({
+      hash: mergeHash,
+      message: mergeMsg,
+      branch: target,
+      author: repo.owner || "Developer",
+      committedAt: new Date(),
+      snapshotFiles: JSON.parse(JSON.stringify(repo.files || []))
+    });
+
+    await repo.save();
+
+    res.status(200).json({
+      message: `Merged branch '${source}' into '${target}'. ${addedCount} file(s) added, ${conflictedCount} conflict(s) resolved into '${target}'.`,
+      repo
+    });
+  } catch (error) {
+    console.error("Error resolving branch merge:", error);
+    res.status(500).json({ message: "Error resolving merge: " + error.message });
   }
 });
 
