@@ -182,16 +182,17 @@ router.post("/:id/members", async (req, res) => {
         const cleanOrigin = requestHeaderOrigin.replace(/\/+$/, "").replace(/\/teams.*$/, "");
         const acceptUrl = `${cleanOrigin}/accept-invite?token=${inviteToken}`;
 
+        let emailStatus = "queued";
         if (finalEmail) {
-          sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl)
-            .catch(err => console.error("❌ Background email error:", err));
+          const sent = await sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl);
+          emailStatus = sent ? "sent" : "could not be sent (check backend console for the SMTP error)";
         }
 
         const resObj = group.toObject();
         delete resObj.groupId;
 
         return res.status(200).json({
-          message: `Invitation email re-sent to ${finalEmail || finalUsername}.`,
+          message: `Invitation email ${emailStatus} to ${finalEmail || finalUsername}.`,
           group: resObj
         });
       }
@@ -217,17 +218,22 @@ router.post("/:id/members", async (req, res) => {
     const cleanOrigin = requestHeaderOrigin.replace(/\/+$/, "").replace(/\/teams.*$/, "");
     const acceptUrl = `${cleanOrigin}/accept-invite?token=${inviteToken}`;
 
+    let emailStatus = "queued";
     if (finalEmail) {
-      // Fire-and-forget email dispatch so HTTP response returns instantly without blocking on SMTP latency
-      sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl)
-        .catch(err => console.error("❌ Background email error:", err));
+      const sent = await sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl);
+      emailStatus = sent ? "sent" : "could not be sent (check backend console for the SMTP error)";
+      if (!sent) {
+        console.warn(`⚠️ Invitation email for ${finalEmail} could NOT be sent.`);
+      }
     }
 
     const resObj = group.toObject();
     delete resObj.groupId;
 
     res.status(200).json({
-      message: `Invitation email sent to ${finalEmail || finalUsername}. They will become an active member upon accepting the invitation.`,
+      message: emailStatus === "sent"
+        ? `Invitation email sent to ${finalEmail}. They will become an active member upon accepting the invitation.`
+        : `Invitation email ${emailStatus} to ${finalEmail || finalUsername}.`,
       group: resObj
     });
   } catch (error) {

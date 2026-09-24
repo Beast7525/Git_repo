@@ -202,15 +202,9 @@ export default function Teams() {
                             <span className="member-name">{m.username || m.email}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            {isPending ? (
-                              <span className="team-role-badge" style={{ background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
-                                ✉️ Pending Verification
-                              </span>
-                            ) : (
-                              <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>
-                                {isMemberCreator ? 'Owner / Creator' : 'Editor'}
-                              </span>
-                            )}
+                            <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>
+                              {isMemberCreator ? 'Owner / Creator' : 'Editor'}
+                            </span>
                             {isCreator && !isMemberCreator && m._id && (
                               <button
                                 type="button"

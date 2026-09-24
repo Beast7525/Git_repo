@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
-import ForgotPassword from "./ForgotPassword";
 import { isAdminCredentials } from "../auth/adminAuth.js";
 import { useLoading } from "../context/LoadingContext";
 
@@ -10,28 +9,43 @@ const API_URL = `${API_BASE_URL}/api/auth`;
 
 function Login() {
   const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Form inputs
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  const [regUsername, setRegUsername] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const navigate = useNavigate();
   const { startLoading, stopLoading, loading } = useLoading();
 
+  const toggleMode = (targetLogin) => {
+    setIsLogin(targetLogin);
+    setError("");
+    setSuccess("");
+  };
+
   // =========================
-  // LOGIN
+  // LOGIN HANDLER
   // =========================
-  const handleLogin = async () => {
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
     try {
       startLoading();
       setError("");
+      setSuccess("");
 
-      if (isAdminCredentials(email, password)) {
+      if (isAdminCredentials(loginEmail, loginPassword)) {
         const adminUser = {
           id: "admin-1",
           username: "Admin",
-          gmail: email,
+          gmail: loginEmail,
           role: "admin",
         };
 
@@ -44,13 +58,8 @@ function Login() {
 
       const response = await fetch(`${API_URL}/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          gmail: email,
-          password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gmail: loginEmail, password: loginPassword }),
       });
 
       const data = await response.json();
@@ -60,17 +69,12 @@ function Login() {
         return;
       }
 
-      // Save complete user details
       localStorage.setItem("user", JSON.stringify(data.user));
-
-      // Save username and user ID separately
       localStorage.setItem("username", data.user.username);
       localStorage.setItem("userId", data.user.id);
 
-      // Go to User Dashboard with clean dynamic username URL
       const userSlug = (data.user.username || "").trim().replace(/\s+/g, "-").toLowerCase();
       navigate(`/${userSlug}`);
-
     } catch (err) {
       setError("Network error: " + err.message);
     } finally {
@@ -79,15 +83,16 @@ function Login() {
   };
 
   // =========================
-  // REGISTER
+  // REGISTER HANDLER
   // =========================
-  const handleRegister = async () => {
-    if (!username || !email || !password || !confirmPassword) {
+  const handleRegister = async (e) => {
+    if (e) e.preventDefault();
+    if (!regUsername || !regEmail || !regPassword || !regConfirmPassword) {
       setError("Please fill all fields");
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (regPassword !== regConfirmPassword) {
       setError("Passwords do not match");
       return;
     }
@@ -95,17 +100,16 @@ function Login() {
     try {
       startLoading();
       setError("");
+      setSuccess("");
 
       const response = await fetch(`${API_URL}/signup`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username,
-          gmail: email,
-          password,
-          confirmPassword,
+          username: regUsername,
+          gmail: regEmail,
+          password: regPassword,
+          confirmPassword: regConfirmPassword,
         }),
       });
 
@@ -116,16 +120,13 @@ function Login() {
         return;
       }
 
-      // Clear form
-      setUsername("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
+      setRegUsername("");
+      setRegEmail("");
+      setRegPassword("");
+      setRegConfirmPassword("");
 
-      // Go to Login
       setIsLogin(true);
-      setError("Registration successful! Please login.");
-
+      setSuccess("Registration successful! Please login.");
     } catch (err) {
       setError("Network error: " + err.message);
     } finally {
@@ -135,94 +136,113 @@ function Login() {
 
   return (
     <div className="container">
-      <div className="login-box">
+      <div className="glass-3d-perspective">
+        <div className={`glass-card-3d ${isLogin ? "show-login" : "show-register"}`}>
+          
+          {/* FRONT FACE: LOGIN */}
+          <div className="glass-face glass-front login-box">
+            <h2>Login</h2>
 
-        <h2>{isLogin ? "Login" : "Register"}</h2>
+            <form onSubmit={handleLogin}>
+              <input
+                type="email"
+                placeholder="Email Address"
+                className="input-box"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                required
+              />
 
-        {/* Username - Register only */}
-        {!isLogin && (
-          <input
-            type="text"
-            placeholder="Username"
-            pattern="[A-Z][A-Z0-9_]{2,19}*"
-            className="input-box"
-            value={username}
-            onChange={(e) => setUsername(e.target.value.toUpperCase())}
-          />
-        )}
+              <input
+                type="password"
+                placeholder="Password"
+                className="input-box"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                required
+              />
 
-        {/* Email */}
-        <input
-          type="email"
-          placeholder="Email Address"
-          className="input-box"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+              <div className="forgot-container">
+                <a href="/ForgotPassword" className="forgot-link">
+                  Forgot Password?
+                </a>
+              </div>
 
-        {/* Password */}
-        <input
-          type="password"
-          placeholder="Password"
-          className="input-box"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />{isLogin && <a href="/ForgotPassword"> Forgot Password?</a>}
-        {/* Confirm Password - Register only */}
-        {!isLogin && (
-          <input
-            type="password"
-            placeholder="Confirm Password"
-            className="input-box"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        )}
+              {error && isLogin && <p className="error-text">{error}</p>}
+              {success && isLogin && <p className="success-text">{success}</p>}
 
-        {/* Error / Success message */}
-        {error && (
-          <p
-            style={{
-              color: error.includes("successful") ? "green" : "red",
-              marginBottom: "10px",
-            }}
-          >
-            {error}
-          </p>
-        )}
+              <button type="submit" className="login-btn" disabled={loading}>
+                {loading ? "Logging in..." : "Login"}
+              </button>
+            </form>
 
-        <button
-          className="login-btn"
-          disabled={loading}
-          onClick={isLogin ? handleLogin : handleRegister}
-        >
-          {loading ? (isLogin ? "Logging in..." : "Registering...") : (isLogin ? "Login" : "Register")}
-        </button>
+            <p className="switch-text">
+              Don't have an account?{" "}
+              <span className="switch-link" onClick={() => toggleMode(false)}>
+                Register
+              </span>
+            </p>
+          </div>
 
-        {/* Switch Login / Register */}
-        <p className="switch-text">
-          {isLogin
-            ? "Don't have an account?"
-            : "Already have an account?"}
+          {/* BACK FACE: REGISTER */}
+          <div className="glass-face glass-back login-box">
+            <h2>Register</h2>
 
-          <span
-            style={{
-              cursor: "pointer",
-              color: "blue",
-            }}
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError("");
-              setUsername("");
-              setEmail("");
-              setPassword("");
-              setConfirmPassword("");
-            }}
-          >
-            {isLogin ? " Register" : " Login"}
-          </span>
-        </p>
+            <form onSubmit={handleRegister}>
+              <input
+                type="text"
+                placeholder="Username"
+                pattern="[A-Z][A-Z0-9_]{2,19}*"
+                className="input-box"
+                value={regUsername}
+                onChange={(e) => setRegUsername(e.target.value.toUpperCase())}
+                required
+              />
 
+              <input
+                type="email"
+                placeholder="Email Address"
+                className="input-box"
+                value={regEmail}
+                onChange={(e) => setRegEmail(e.target.value)}
+                required
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                className="input-box"
+                value={regPassword}
+                onChange={(e) => setRegPassword(e.target.value)}
+                required
+              />
+
+              <input
+                type="password"
+                placeholder="Confirm Password"
+                className="input-box"
+                value={regConfirmPassword}
+                onChange={(e) => setRegConfirmPassword(e.target.value)}
+                required
+              />
+
+              {error && !isLogin && <p className="error-text">{error}</p>}
+              {success && !isLogin && <p className="success-text">{success}</p>}
+
+              <button type="submit" className="login-btn" disabled={loading}>
+                {loading ? "Registering..." : "Register"}
+              </button>
+            </form>
+
+            <p className="switch-text">
+              Already have an account?{" "}
+              <span className="switch-link" onClick={() => toggleMode(true)}>
+                Login
+              </span>
+            </p>
+          </div>
+
+        </div>
       </div>
     </div>
   );
