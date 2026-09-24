@@ -60,9 +60,11 @@
   transform: rotateY(180deg);
 }
 
-/* Glassmorphism Card over Sunset Background */
+/* Glassmorphism Card (constrained to 400px max width) */
 .login-box {
-  width: 100%;
+  width: 400px;
+  max-width: 90%;
+  margin: 0 auto;
   background: rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -75,10 +77,16 @@
 
 .login-box h2 {
   color: #1e293b;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
   font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.5px;
+}
+
+.step-desc {
+  color: #475569;
+  font-size: 14px;
+  margin-bottom: 14px;
 }
 
 .input-box {
