@@ -1,15 +1,15 @@
 /* =========================================================
-   User Profile - Dark Page Background with Light Cards (Vice Versa)
+   User Profile - Claymorphism Style (Soft, Puffy, Playful)
    ========================================================= */
 
 .user_profile_page {
   min-height: 100vh;
   width: 100%;
-  background: #0f172a;
+  background: radial-gradient(1100px 560px at 15% -10%, #173c2a 0%, #10281c 52%, #0a1811 100%);
   padding-bottom: 60px;
   box-sizing: border-box;
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #0f172a;
+  color: #1c4a33;
 }
 
 .clay_profile_wrapper {
@@ -26,18 +26,32 @@
   align-items: stretch;
 }
 
-/* Light Card on Dark Background (No Box Shadow) */
+/* ---------- Clay Card Base ---------- */
 .clay_card {
-  background: #ffffff;
-  border-radius: 18px;
-  box-shadow: none !important;
-  border: 1px solid #e2e8f0;
+  background: linear-gradient(145deg, #ddf4e7 0%, #bce8cd 45%, #a3ddbd 100%);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
   padding: 32px;
   box-sizing: border-box;
-  color: #0f172a;
+  color: #1c4a33;
+  box-shadow:
+    0 22px 34px -12px rgba(8, 26, 17, 0.6),
+    0 8px 14px -8px rgba(8, 26, 17, 0.45),
+    inset 0 3px 2px rgba(255, 255, 255, 0.6),
+    inset 0 -5px 9px rgba(70, 125, 95, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Left Sidebar Box */
+.clay_card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 26px 40px -12px rgba(8, 26, 17, 0.65),
+    0 8px 14px -8px rgba(8, 26, 17, 0.45),
+    inset 0 3px 2px rgba(255, 255, 255, 0.6),
+    inset 0 -5px 9px rgba(70, 125, 95, 0.28);
+}
+
+/* ---------- Left Sidebar Box ---------- */
 .box_user_profile {
   width: 300px;
   display: flex;
@@ -48,48 +62,80 @@
   flex-shrink: 0;
 }
 
-/* Avatar Image (No Box Shadow) */
+/* ---------- Avatar "Clay Coin" ---------- */
 .profile_img.clay_avatar {
-  width: 160px;
-  height: 160px;
+  width: 170px;
+  height: 170px;
   object-fit: cover;
   border-radius: 50%;
-  background: #f8fafc;
-  box-shadow: none !important;
-  border: 3px solid #2563eb;
-  margin-bottom: 24px;
+  background: linear-gradient(145deg, #d2f2de 0%, #9bd7b4 100%);
+  border: 7px solid rgba(255, 255, 255, 0.55);
+  margin-bottom: 26px;
+  box-shadow:
+    0 16px 24px -10px rgba(8, 26, 17, 0.55),
+    inset 0 4px 4px rgba(255, 255, 255, 0.65),
+    inset 0 -6px 8px rgba(60, 115, 88, 0.32);
 }
 
-/* Flat Buttons (No Box Shadow) */
+/* ---------- Clay Buttons ---------- */
 .clay_btn {
-  padding: 12px 24px;
-  border-radius: 10px;
+  padding: 13px 26px;
+  border-radius: 16px;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.45);
   outline: none;
-  box-shadow: none !important;
-  transition: background 0.2s ease, transform 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(145deg, #46c67e 0%, #2aa15c 100%);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(10, 40, 25, 0.25);
+  box-shadow:
+    0 12px 16px -7px rgba(8, 26, 17, 0.55),
+    inset 0 2px 1px rgba(255, 255, 255, 0.5),
+    inset 0 -3px 5px rgba(0, 60, 30, 0.28);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.15s ease;
+}
+
+.clay_btn:hover {
+  filter: brightness(1.04);
+}
+
+.clay_btn:active {
+  transform: translateY(3px) scale(0.98);
+  box-shadow:
+    0 5px 9px -4px rgba(8, 26, 17, 0.45),
+    inset 0 5px 8px rgba(0, 60, 30, 0.35),
+    inset 0 -2px 2px rgba(255, 255, 255, 0.25);
 }
 
 .primary_clay {
-  background: #2563eb;
+  background: linear-gradient(145deg, #46c67e 0%, #2aa15c 100%);
   color: #ffffff;
 }
 
-.primary_clay:hover {
-  background: #1d4ed8;
+.success_clay {
+  background: linear-gradient(145deg, #3fb970 0%, #249452 100%);
+  color: #ffffff;
 }
 
-.primary_clay:active {
-  transform: scale(0.98);
+.success_clay:hover {
+  filter: brightness(1.04);
 }
 
-/* Right Main Info Card */
+.cancel_clay {
+  background: linear-gradient(145deg, #f6fb8f 0%, #e3e78f 100%);
+  color: #44501a;
+  text-shadow: none;
+}
+
+.cancel_clay:hover {
+  filter: brightness(1.04);
+}
+
+/* ---------- Right Main Info Card ---------- */
 .user_box {
   flex: 1;
   display: flex;
@@ -101,28 +147,35 @@
   margin: 0 0 10px;
   font-size: 2.2rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #14402a;
   letter-spacing: -0.5px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-/* Light Detail Items (No Box Shadow) */
+/* Clay "chip" detail items */
 .profile_detail_item {
   display: flex;
   align-items: center;
-  padding: 12px 18px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: none !important;
+  gap: 12px;
+  padding: 13px 18px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.42), rgba(184, 227, 202, 0.32));
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px rgba(70, 125, 95, 0.2);
   font-size: 0.95rem;
-  color: #334155;
-  border: 1px solid #e2e8f0;
+  color: #21563a;
 }
 
 .profile_detail_item strong {
   width: 120px;
-  color: #2563eb;
-  font-weight: 600;
+  color: #1b7a4a;
+  font-weight: 700;
   flex-shrink: 0;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+  letter-spacing: 0.4px;
 }
 
 /* =========================================
@@ -137,8 +190,9 @@
 .edit_profile_container h2 {
   margin: 0 0 20px;
   font-size: 1.8rem;
-  color: #0f172a;
+  color: #14402a;
   font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .edit_profile_image {
@@ -147,59 +201,63 @@
 }
 
 .edit_profile_img.clay_avatar {
-  width: 130px;
-  height: 130px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
   object-fit: cover;
-  margin: 0 auto 14px;
-  box-shadow: none !important;
-  border: 3px solid #2563eb;
+  margin: 0 auto 16px;
+  background: linear-gradient(145deg, #d2f2de 0%, #9bd7b4 100%);
+  border: 6px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 14px 22px -10px rgba(8, 26, 17, 0.55),
+    inset 0 4px 4px rgba(255, 255, 255, 0.65),
+    inset 0 -6px 8px rgba(60, 115, 88, 0.32);
 }
 
 .change_photo_btn.clay_btn {
-  background: #2563eb;
+  background: linear-gradient(145deg, #46c67e 0%, #2aa15c 100%);
   color: #ffffff !important;
-}
-
-.change_photo_btn.clay_btn:hover {
-  background: #1d4ed8;
 }
 
 .edit_profile_container label {
   display: block;
-  margin-top: 16px;
-  margin-bottom: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #475569;
+  margin-top: 18px;
+  margin-bottom: 7px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1f5c3e;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 }
 
-/* Inputs (No Box Shadow) */
+/* "Recessed" clay inputs */
 .clay_input {
   width: 100%;
-  padding: 12px 16px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
+  padding: 14px 16px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
   outline: none;
   font-size: 0.95rem;
-  background: #f8fafc;
-  color: #0f172a;
-  box-shadow: none !important;
+  background: linear-gradient(145deg, #b4e2c6 0%, #d3f1df 100%);
+  color: #14402a;
   box-sizing: border-box;
-  transition: border-color 0.2s ease;
+  box-shadow:
+    inset 0 3px 5px rgba(60, 115, 88, 0.28),
+    inset 0 -2px 3px rgba(255, 255, 255, 0.5);
+  transition: box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .clay_input.disabled {
-  opacity: 0.7;
+  opacity: 0.75;
   cursor: not-allowed;
-  background: #f1f5f9;
+  background: linear-gradient(145deg, #c9e9d6 0%, #dcefe6 100%);
 }
 
 .clay_input:focus {
-  border-color: #2563eb;
-  background: #ffffff;
+  background: linear-gradient(145deg, #dff6e9 0%, #eafbee 100%);
+  box-shadow:
+    inset 0 3px 5px rgba(60, 115, 88, 0.2),
+    0 0 0 4px rgba(70, 198, 126, 0.28);
 }
 
 textarea.clay_input {
@@ -209,8 +267,8 @@ textarea.clay_input {
 
 .edit_profile_container small {
   display: block;
-  margin-top: 6px;
-  color: #64748b;
+  margin-top: 8px;
+  color: #1c5c3d;
   font-size: 0.82rem;
 }
 
@@ -220,46 +278,27 @@ textarea.clay_input {
   gap: 10px;
   cursor: pointer;
   text-transform: none !important;
-  font-size: 0.92rem !important;
-  color: #334155 !important;
+  font-size: 0.95rem !important;
+  color: #1c5c3d !important;
 }
 
 .checkbox_label input {
   width: auto !important;
-  accent-color: #2563eb;
+  accent-color: #2aa15c;
 }
 
 .edit_profile_container h3 {
-  margin-top: 28px;
-  margin-bottom: 12px;
+  margin-top: 30px;
+  margin-bottom: 14px;
   font-size: 1.2rem;
-  color: #0f172a;
+  color: #14402a;
   font-weight: 700;
 }
 
 .edit_buttons {
   display: flex;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.success_clay {
-  background: #16a34a;
-  color: #ffffff;
-}
-
-.success_clay:hover {
-  background: #15803d;
-}
-
-.cancel_clay {
-  background: #e2e8f0;
-  color: #334155;
-}
-
-.cancel_clay:hover {
-  background: #cbd5e1;
-  color: #0f172a;
+  gap: 14px;
+  margin-top: 26px;
 }
 
 /* Responsive Stacking */
@@ -275,7 +314,7 @@ textarea.clay_input {
   .profile_detail_item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    gap: 6px;
   }
 
   .profile_detail_item strong {
