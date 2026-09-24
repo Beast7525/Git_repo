@@ -30,10 +30,10 @@ function User_profile() {
 
   if (!savedUser) {
     return (
-      <div>
+      <div className="user_profile_page">
         <User_header />
 
-        <div className="user_box">
+        <div className="user_box clay_card">
           <h2>Please login first</h2>
         </div>
       </div>
@@ -111,241 +111,218 @@ function User_profile() {
   };
 
   return (
-    <div>
+    <div className="user_profile_page">
       <User_header />
 
-      {!isEditing ? (
-        // ================= PROFILE VIEW =================
-        <>
-          <div className="box_user_profile">
-
-            <img
-              className="profile_img"
-              src={imagePreview}
-              alt="Profile"
-            />
-
-            <button onClick={() => setIsEditing(true)}>
-              Edit Profile
-            </button>
-
-          </div>
-
-          <div className="user_box">
-
-            <h1>{profileData.name}</h1>
-
-            <p>
-              <strong>Email:</strong> {profileData.email}
-            </p>
-
-            <p>
-              <strong>Bio:</strong>{" "}
-              {profileData.bio || "No bio added"}
-            </p>
-
-            <p>
-              <strong>Pronouns:</strong> {profileData.pronouns}
-            </p>
-
-            <p>
-              <strong>Company:</strong>{" "}
-              {profileData.company || "Not added"}
-            </p>
-
-            <p>
-              <strong>Location:</strong>{" "}
-              {profileData.location || "Not added"}
-            </p>
-
-            {profileData.website && (
-              <p>
-                <strong>Website:</strong> {profileData.website}
-              </p>
-            )}
-
-          </div>
-        </>
-      ) : (
-        // ================= EDIT PROFILE =================
-        <div className="edit_profile_container">
-
-          <h2>Edit Profile</h2>
-
-          {/* Profile Image */}
-          <div className="edit_profile_image">
-
-            <img
-              src={imagePreview}
-              alt="Profile"
-              className="edit_profile_img"
-            />
-
-            <label className="change_photo_btn">
-              Change Profile Photo
-
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                hidden
+      <div className="clay_profile_wrapper">
+        {!isEditing ? (
+          // ================= PROFILE VIEW =================
+          <div className="profile_card_layout">
+            <div className="box_user_profile clay_card">
+              <img
+                className="profile_img clay_avatar"
+                src={imagePreview}
+                alt="Profile"
               />
+
+              <button className="clay_btn primary_clay" onClick={() => setIsEditing(true)}>
+                Edit Profile
+              </button>
+            </div>
+
+            <div className="user_box clay_card">
+              <h1>{profileData.name}</h1>
+
+              <div className="profile_detail_item">
+                <strong>Email:</strong> <span>{profileData.email}</span>
+              </div>
+
+              <div className="profile_detail_item">
+                <strong>Bio:</strong> <span>{profileData.bio || "No bio added"}</span>
+              </div>
+
+              <div className="profile_detail_item">
+                <strong>Pronouns:</strong> <span>{profileData.pronouns}</span>
+              </div>
+
+              <div className="profile_detail_item">
+                <strong>Company:</strong> <span>{profileData.company || "Not added"}</span>
+              </div>
+
+              <div className="profile_detail_item">
+                <strong>Location:</strong> <span>{profileData.location || "Not added"}</span>
+              </div>
+
+              {profileData.website && (
+                <div className="profile_detail_item">
+                  <strong>Website:</strong> <span>{profileData.website}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // ================= EDIT PROFILE =================
+          <div className="edit_profile_container clay_card">
+            <h2>Edit Profile</h2>
+
+            {/* Profile Image */}
+            <div className="edit_profile_image">
+              <img
+                src={imagePreview}
+                alt="Profile"
+                className="edit_profile_img clay_avatar"
+              />
+
+              <label className="change_photo_btn clay_btn">
+                Change Profile Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  hidden
+                />
+              </label>
+            </div>
+
+            {/* Name */}
+            <label>Name</label>
+            <input
+              type="text"
+              name="name"
+              value={profileData.name}
+              onChange={handleChange}
+              placeholder="Name"
+              className="clay_input"
+            />
+
+            {/* Email */}
+            <label>Email</label>
+            <input
+              type="email"
+              value={profileData.email}
+              disabled
+              className="clay_input disabled"
+            />
+
+            {/* Bio */}
+            <label>Bio</label>
+            <textarea
+              name="bio"
+              value={profileData.bio}
+              onChange={handleChange}
+              placeholder="Add a bio"
+              maxLength="160"
+              className="clay_input"
+            />
+            <small>
+              You can @mention other users and organizations to link to them.
+            </small>
+
+            {/* Pronouns */}
+            <label>Pronouns</label>
+            <select
+              name="pronouns"
+              value={profileData.pronouns}
+              onChange={handleChange}
+              className="clay_input"
+            >
+              <option value="Don't specify">Don't specify</option>
+              <option value="He/Him">He/Him</option>
+              <option value="She/Her">She/Her</option>
+              <option value="They/Them">They/Them</option>
+            </select>
+
+            {/* Company */}
+            <label>Company</label>
+            <input
+              type="text"
+              name="company"
+              value={profileData.company}
+              onChange={handleChange}
+              placeholder="Company"
+              className="clay_input"
+            />
+
+            {/* Location */}
+            <label>Location</label>
+            <input
+              type="text"
+              name="location"
+              value={profileData.location}
+              onChange={handleChange}
+              placeholder="Location"
+              className="clay_input"
+            />
+
+            {/* Local Time */}
+            <label className="checkbox_label">
+              <input
+                type="checkbox"
+                name="localTime"
+                checked={profileData.localTime}
+                onChange={handleChange}
+              />
+              Display current local time
             </label>
 
-          </div>
-
-          {/* Name */}
-          <label>Name</label>
-
-          <input
-            type="text"
-            name="name"
-            value={profileData.name}
-            onChange={handleChange}
-            placeholder="Name"
-          />
-
-          {/* Email */}
-          <label>Email</label>
-
-          <input
-            type="email"
-            value={profileData.email}
-            disabled
-          />
-
-          {/* Bio */}
-          <label>Bio</label>
-
-          <textarea
-            name="bio"
-            value={profileData.bio}
-            onChange={handleChange}
-            placeholder="Add a bio"
-            maxLength="160"
-          />
-
-          <small>
-            You can @mention other users and organizations to link to them.
-          </small>
-
-          {/* Pronouns */}
-          <label>Pronouns</label>
-
-          <select
-            name="pronouns"
-            value={profileData.pronouns}
-            onChange={handleChange}
-          >
-            <option value="Don't specify">Don't specify</option>
-            <option value="He/Him">He/Him</option>
-            <option value="She/Her">She/Her</option>
-            <option value="They/Them">They/Them</option>
-          </select>
-
-          {/* Company */}
-          <label>Company</label>
-
-          <input
-            type="text"
-            name="company"
-            value={profileData.company}
-            onChange={handleChange}
-            placeholder="Company"
-          />
-
-          {/* Location */}
-          <label>Location</label>
-
-          <input
-            type="text"
-            name="location"
-            value={profileData.location}
-            onChange={handleChange}
-            placeholder="Location"
-          />
-
-          {/* Local Time */}
-          <label className="checkbox_label">
-
+            {/* Website */}
+            <label>Website</label>
             <input
-              type="checkbox"
-              name="localTime"
-              checked={profileData.localTime}
+              type="text"
+              name="website"
+              value={profileData.website}
               onChange={handleChange}
+              placeholder="Website"
+              className="clay_input"
             />
 
-            Display current local time
+            {/* Social Accounts */}
+            <h3>Social accounts</h3>
+            <input
+              type="text"
+              name="social1"
+              value={profileData.social1}
+              onChange={handleChange}
+              placeholder="Link to social profile 1"
+              className="clay_input"
+            />
+            <input
+              type="text"
+              name="social2"
+              value={profileData.social2}
+              onChange={handleChange}
+              placeholder="Link to social profile 2"
+              className="clay_input"
+            />
+            <input
+              type="text"
+              name="social3"
+              value={profileData.social3}
+              onChange={handleChange}
+              placeholder="Link to social profile 3"
+              className="clay_input"
+            />
+            <input
+              type="text"
+              name="social4"
+              value={profileData.social4}
+              onChange={handleChange}
+              placeholder="Link to social profile 4"
+              className="clay_input"
+            />
 
-          </label>
-
-          {/* Website */}
-          <label>Website</label>
-
-          <input
-            type="text"
-            name="website"
-            value={profileData.website}
-            onChange={handleChange}
-            placeholder="Website"
-          />
-
-          {/* Social Accounts */}
-          <h3>Social accounts</h3>
-
-          <input
-            type="text"
-            name="social1"
-            value={profileData.social1}
-            onChange={handleChange}
-            placeholder="Link to social profile 1"
-          />
-
-          <input
-            type="text"
-            name="social2"
-            value={profileData.social2}
-            onChange={handleChange}
-            placeholder="Link to social profile 2"
-          />
-
-          <input
-            type="text"
-            name="social3"
-            value={profileData.social3}
-            onChange={handleChange}
-            placeholder="Link to social profile 3"
-          />
-
-          <input
-            type="text"
-            name="social4"
-            value={profileData.social4}
-            onChange={handleChange}
-            placeholder="Link to social profile 4"
-          />
-
-          {/* Buttons */}
-          <div className="edit_buttons">
-
-            <button
-              className="save_btn"
-              onClick={handleSave}
-            >
-              Save
-            </button>
-
-            <button
-              className="cancel_btn"
-              onClick={handleCancel}
-            >
-              Cancel
-            </button>
-
+            {/* Buttons */}
+            <div className="edit_buttons">
+              <button className="save_btn clay_btn success_clay" onClick={handleSave}>
+                Save
+              </button>
+              <button className="cancel_btn clay_btn cancel_clay" onClick={handleCancel}>
+                Cancel
+              </button>
+            </div>
           </div>
-
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

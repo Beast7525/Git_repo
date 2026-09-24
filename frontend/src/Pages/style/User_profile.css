@@ -1,493 +1,321 @@
-body{
-    margin: 0; 
-    padding: 0;
-    min-height: 120vh; 
-    color: #f5f6ef; 
-    background: #0c1110; 
-    font-family: 'Poppins', sans-serif; 
-
-}
+/* =========================================================
+   Claymorphism Design System - Colorful Pastel Reference Theme
+   Palette: Lavender Purple, Coral Peach, Mint Green, Sky Blue, Soft Yellow
+   ========================================================= */
 
 .user_profile_page {
   min-height: 100vh;
   width: 100%;
-  background: #f5f7fb;
-  padding-bottom: 50px;
+  background: #f7f4fc;
+  padding-bottom: 60px;
+  box-sizing: border-box;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #2d2454;
+}
+
+.clay_profile_wrapper {
+  max-width: 1000px;
+  margin: 40px auto 0;
+  padding: 0 20px;
   box-sizing: border-box;
 }
 
+.profile_card_layout {
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+  align-items: stretch;
+}
 
-
-.box_user_profile {
-  width: 300px;
-  height: 500px;
-
-  margin: 60px 0 0 16%;
-
-  padding: 35px 25px;
-
-  background: #fffefe;
-
-  border-radius: 18px 0 0 18px;
-
+/* Base Lavender Clay Card */
+.clay_card {
+  background: linear-gradient(145deg, #eae0ff, #d8cbfa);
+  border-radius: 30px;
+  box-shadow: 16px 16px 32px #c9b9eb,
+              -16px -16px 32px #ffffff,
+              inset 4px 4px 8px rgba(255, 255, 255, 0.8),
+              inset -4px -4px 8px rgba(150, 120, 220, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  padding: 36px;
   box-sizing: border-box;
+}
 
-  display: inline-flex;
-  vertical-align: top;
-
+/* Left Sidebar Box - Soft Lavender Clay */
+.box_user_profile {
+  width: 320px;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  flex-shrink: 0;
 }
 
-
-
-
-.profile_img {
-  width: 170px;
-  height: 170px;
-
+/* Mint Green Avatar Frame */
+.profile_img.clay_avatar {
+  width: 165px;
+  height: 165px;
   object-fit: cover;
-
-  border-radius: 12px;
-
-  border: 5px solid #ffffff;
-
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
-
-  margin-bottom: 30px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #c7f7e2, #a5e6ca);
+  box-shadow: 12px 12px 24px #beafdf,
+              -12px -12px 24px #ffffff,
+              inset 4px 4px 8px rgba(255, 255, 255, 0.9),
+              inset -4px -4px 8px rgba(50, 160, 110, 0.25);
+  border: 6px solid #d9f9ed;
+  margin-bottom: 28px;
 }
 
-
-/* =========================================
-   EDIT PROFILE BUTTON
-========================================= */
-
-.box_user_profile button {
-  width: 150px;
-
-  padding: 10px 15px;
-
-  background: #ffffff;
-
-  color: #24292f;
-
-  border: 1px solid #c9d1d9;
-
-  border-radius: 7px;
-
-  font-size: 14px;
-
-  font-weight: 600;
-
+/* Clay Buttons */
+.clay_btn {
+  padding: 13px 26px;
+  border-radius: 22px;
+  font-size: 0.95rem;
+  font-weight: 700;
   cursor: pointer;
-
-  transition: 0.2s;
+  border: none;
+  outline: none;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.3px;
 }
 
-.box_user_profile button:hover {
-  background: #f3f4f6;
-  border-color: #8c959f;
+/* Coral / Peach Primary Clay Button */
+.primary_clay {
+  background: linear-gradient(145deg, #ff9b8a, #ff7663);
+  color: #ffffff;
+  box-shadow: 8px 8px 18px rgba(255, 118, 99, 0.4),
+              -8px -8px 18px #ffffff,
+              inset 3px 3px 6px rgba(255, 255, 255, 0.5);
 }
 
+.primary_clay:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 10px 10px 22px rgba(255, 118, 99, 0.5),
+              -10px -10px 22px #ffffff,
+              inset 3px 3px 6px rgba(255, 255, 255, 0.6);
+}
 
+.primary_clay:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: inset 4px 4px 8px rgba(180, 50, 30, 0.3),
+              inset -4px -4px 8px rgba(255, 255, 255, 0.4);
+}
+
+/* Right Main Info Card */
 .user_box {
-  width: 48%;
-  max-width: 600px;
-  height: 500px;
-
-  margin: 60px 0 0 0;
-
-  padding: 40px;
-  left: 3%;
-  transform: translateX(-3%);
-  background: #ffffff;
-
-  border-radius: 0 18px 18px 0;
-
-  box-sizing: border-box;
-
-  display: inline-block;
-  vertical-align: top;
-
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-
-
-/* =========================================
-   USERNAME
-========================================= */
 
 .user_box h1 {
-  margin: 0 0 35px;
+  margin: 0 0 8px;
+  font-size: 2.3rem;
+  font-weight: 800;
+  color: #261b4d;
+  letter-spacing: -0.5px;
+}
 
-  font-size: 36px;
+/* Detail Items with Soft Sky Blue & Mint Inset Clay */
+.profile_detail_item {
+  display: flex;
+  align-items: center;
+  padding: 14px 20px;
+  background: linear-gradient(145deg, #e4efff, #d5e5ff);
+  border-radius: 20px;
+  box-shadow: inset 4px 4px 8px #becee8,
+              inset -4px -4px 8px #ffffff;
+  font-size: 0.96rem;
+  color: #272250;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
 
+.profile_detail_item:nth-child(even) {
+  background: linear-gradient(145deg, #e0faf0, #cefae7);
+  box-shadow: inset 4px 4px 8px #b9e8d4,
+              inset -4px -4px 8px #ffffff;
+}
+
+.profile_detail_item strong {
+  width: 120px;
+  color: #1e1743;
   font-weight: 700;
-
-  color: #24292f;
+  flex-shrink: 0;
 }
-
 
 /* =========================================
-   USER DETAILS
-========================================= */
-
-.user_box p {
-  margin: 18px 0;
-
-  font-size: 16px;
-
-  color: #57606a;
-
-  line-height: 1.5;
-}
-
-.user_box p strong {
-  display: inline-block;
-
-  width: 105px;
-
-  color: #24292f;
-
-  font-weight: 600;
-}
-
-
-/* =========================================
-   MOBILE - STACK ONLY ON SMALL SCREENS
-========================================= */
-
-@media (max-width: 800px) {
-
-  .box_user_profile {
-    width: 90%;
-    max-width: none;
-    height: auto;
-
-    margin: 30px auto 0;
-
-    display: flex;
-
-    border-radius: 18px 18px 0 0;
-  }
-
-  .user_box {
-    width: 90%;
-    max-width: none;
-    height: auto;
-
-    margin: 0 auto;
-
-    display: block;
-
-    border-radius: 0 0 18px 18px;
-  }
-}
-
-@media (max-width: 500px) {
-
-  .box_user_profile,
-  .user_box {
-    width: 94%;
-  }
-
-  .profile_img {
-    width: 140px;
-    height: 140px;
-  }
-
-  .user_box h1 {
-    font-size: 28px;
-  }
-}
-
-
-
-/* =========================================
-   EDIT PROFILE PAGE
+   EDIT PROFILE CLAY FORM
 ========================================= */
 
 .edit_profile_container {
-  width: 600px;
-
-  max-width: 92%;
-
-  margin: 50px auto;
-
-  padding: 35px;
-
-  background: #ffffff;
-
-  border-radius: 15px;
-
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-
-  box-sizing: border-box;
+  max-width: 650px;
+  margin: 0 auto;
 }
-
 
 .edit_profile_container h2 {
-  margin: 0 0 25px;
-
-  font-size: 28px;
-
-  color: #24292f;
+  margin: 0 0 24px;
+  font-size: 1.9rem;
+  color: #261b4d;
+  font-weight: 800;
 }
-
-
-
 
 .edit_profile_image {
   text-align: center;
-
-  margin-bottom: 30px;
+  margin-bottom: 28px;
 }
 
-
-.edit_profile_img {
-  width: 130px;
-  height: 130px;
-
+.edit_profile_img.clay_avatar {
+  width: 135px;
+  height: 135px;
   border-radius: 50%;
-
   object-fit: cover;
-
-  display: block;
-
-  margin: 0 auto 15px;
-
-  border: 4px solid #ffffff;
-
-  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.15);
+  margin: 0 auto 16px;
+  background: linear-gradient(145deg, #c7f7e2, #a5e6ca);
+  box-shadow: 10px 10px 20px #beafdf,
+              -10px -10px 20px #ffffff,
+              inset 3px 3px 6px rgba(255, 255, 255, 0.9);
+  border: 5px solid #d9f9ed;
 }
 
-
-.change_photo_btn {
-  display: inline-block !important;
-
-  width: auto !important;
-
-  padding: 9px 16px !important;
-
-  background: #0969da;
-
+.change_photo_btn.clay_btn {
+  background: linear-gradient(145deg, #9bb0ff, #7e99ff);
   color: #ffffff !important;
-
-  border-radius: 6px;
-
-  cursor: pointer;
-
-  font-size: 14px !important;
-
-  font-weight: 600;
+  box-shadow: 6px 6px 14px rgba(126, 153, 255, 0.4),
+              -6px -6px 14px #ffffff,
+              inset 2px 2px 4px rgba(255, 255, 255, 0.5);
 }
 
-
-.change_photo_btn:hover {
-  background: #0757b5;
-}
-
-
-
-.edit_profile_container > label {
+.edit_profile_container label {
   display: block;
-
   margin-top: 18px;
-
-  margin-bottom: 7px;
-
-  font-size: 14px;
-
-  font-weight: 600;
-
-  color: #24292f;
+  margin-bottom: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #3b2e6b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-
-.edit_profile_container input,
-.edit_profile_container textarea,
-.edit_profile_container select {
+/* Inset Clay Form Fields */
+.clay_input {
   width: 100%;
-
-  padding: 11px 12px;
-
-  border: 1px solid #d0d7de;
-
-  border-radius: 7px;
-
+  padding: 13px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
   outline: none;
-
-  font-size: 14px;
-
-  background: #ffffff;
-
-  color: #24292f;
-
+  font-size: 0.95rem;
+  background: linear-gradient(145deg, #e4efff, #d8e7ff);
+  color: #1e1743;
+  box-shadow: inset 4px 4px 8px #bfcde4,
+              inset -4px -4px 8px #ffffff;
   box-sizing: border-box;
+  transition: all 0.25s ease;
+  font-weight: 500;
 }
 
-
-.edit_profile_container input:focus,
-.edit_profile_container textarea:focus,
-.edit_profile_container select:focus {
-  border-color: #0969da;
-
-  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.12);
+.clay_input.disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
+.clay_input:focus {
+  background: linear-gradient(145deg, #edf4ff, #e0eeff);
+  box-shadow: inset 5px 5px 10px #b2c2de,
+              inset -5px -5px 10px #ffffff,
+              0 0 0 3px rgba(126, 153, 255, 0.3);
+}
 
-.edit_profile_container textarea {
+textarea.clay_input {
   min-height: 100px;
-
   resize: vertical;
 }
 
-
-
 .edit_profile_container small {
   display: block;
-
   margin-top: 6px;
-
-  color: #656d76;
-
-  font-size: 12px;
+  color: #655694;
+  font-size: 0.82rem;
 }
-
 
 .checkbox_label {
   display: flex !important;
-
   align-items: center;
-
-  gap: 8px;
-
+  gap: 10px;
   cursor: pointer;
+  text-transform: none !important;
+  font-size: 0.92rem !important;
 }
+
 .checkbox_label input {
   width: auto !important;
+  accent-color: #ff7663;
 }
 
 .edit_profile_container h3 {
-  margin-top: 30px;
-
-  margin-bottom: 12px;
-
-  font-size: 18px;
-
-  color: #24292f;
+  margin-top: 32px;
+  margin-bottom: 14px;
+  font-size: 1.25rem;
+  color: #261b4d;
+  font-weight: 800;
 }
-
-
-.edit_profile_container h3 ~ input {
-  margin-bottom: 10px;
-}
-
-
-/* =========================================
-   SAVE / CANCEL
-========================================= */
 
 .edit_buttons {
   display: flex;
-
-  gap: 10px;
-
-  margin-top: 25px;
+  gap: 14px;
+  margin-top: 28px;
 }
 
-
-.save_btn {
-  padding: 9px 18px;
-
-  border: none;
-
-  border-radius: 6px;
-
-  background: #1f883d;
-
-  color: #ffffff;
-
-  font-weight: 600;
-
-  cursor: pointer;
+/* Mint Green Clay Save Button */
+.success_clay {
+  background: linear-gradient(145deg, #a4f5d3, #7ee6b9);
+  color: #0f4c33;
+  box-shadow: 6px 6px 14px rgba(126, 230, 185, 0.5),
+              -6px -6px 14px #ffffff,
+              inset 2px 2px 4px rgba(255, 255, 255, 0.6);
 }
 
-
-.save_btn:hover {
-  background: #1a7f37;
+.success_clay:hover {
+  transform: translateY(-2px);
+  box-shadow: 8px 8px 18px rgba(126, 230, 185, 0.6),
+              -8px -8px 18px #ffffff;
 }
 
-
-.cancel_btn {
-  padding: 9px 18px;
-
-  border: 1px solid #d0d7de;
-
-  border-radius: 6px;
-
-  background: #ffffff;
-
-  color: #24292f;
-
-  font-weight: 600;
-
-  cursor: pointer;
+/* Soft Yellow Clay Cancel Button */
+.cancel_clay {
+  background: linear-gradient(145deg, #fff1b8, #ffe285);
+  color: #5c4300;
+  box-shadow: 6px 6px 14px rgba(255, 226, 133, 0.5),
+              -6px -6px 14px #ffffff,
+              inset 2px 2px 4px rgba(255, 255, 255, 0.6);
 }
 
+.cancel_clay:hover {
+  transform: translateY(-2px);
+  box-shadow: 8px 8px 18px rgba(255, 226, 133, 0.6),
+              -8px -8px 18px #ffffff;
+}
 
-/* =========================================
-   RESPONSIVE
-========================================= */
-
+/* Responsive Stacking */
 @media (max-width: 800px) {
-
-  .user_profile_page {
-    display: block;
+  .profile_card_layout {
+    flex-direction: column;
   }
 
   .box_user_profile {
-    width: 90%;
-    max-width: none;
-
-    margin: 30px auto 0;
-
-    border-radius: 18px 18px 0 0;
-
-    min-height: auto;
+    width: 100%;
   }
 
-  .user_box {
-    width: 90%;
-    max-width: none;
-
-    margin: 0 auto;
-
-    border-radius: 0 0 18px 18px;
-
-    min-height: auto;
+  .profile_detail_item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 
-}
-
-
-@media (max-width: 500px) {
-
-  .box_user_profile,
-  .user_box {
-    width: 94%;
+  .profile_detail_item strong {
+    width: auto;
   }
-
-  .profile_img {
-    width: 140px;
-    height: 140px;
-  }
-
-  .user_box h1 {
-    font-size: 28px;
-  }
-
 }
