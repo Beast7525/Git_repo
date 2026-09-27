@@ -150,6 +150,7 @@ function RepoDetail() {
   const [filesToUpload, setFilesToUpload] = useState([]);
   const [commitMessage, setCommitMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadError, setUploadError] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -439,6 +440,7 @@ function RepoDetail() {
     }
 
     setUploading(true);
+    setUploadProgress(0);
     setUploadMessage("");
     setUploadError(false);
 
@@ -451,22 +453,47 @@ function RepoDetail() {
       formData.append("message", finalCommitMsg);
       formData.append("branch", selectedBranch || repo?.defaultBranch || "main");
 
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/upload`, {
-        method: "POST",
-        body: formData
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percent);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText || "{}");
+              setRepo(data.repo);
+              setFilesToUpload([]);
+              setCommitMessage("");
+              setUploadError(false);
+              setUploadMessage(data.message || `Successfully uploaded ${filesArr.length} file(s) and recorded commit.`);
+              setUploadProgress(100);
+              setTimeout(() => {
+                setShowUploadModal(false);
+                setUploadProgress(0);
+              }, 1500);
+              resolve();
+            } catch (err) {
+              reject(new Error("Invalid server response format."));
+            }
+          } else {
+            let data = {};
+            try { data = JSON.parse(xhr.responseText); } catch (_) {}
+            reject(new Error(data.message || `Upload failed with status code ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Upload failed. Please check network connection."));
+        xhr.onabort = () => reject(new Error("Upload was aborted."));
+
+        xhr.open("POST", `${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/upload`);
+        xhr.send(formData);
       });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || res.statusText);
-      }
-
-      setRepo(data.repo);
-      setFilesToUpload([]);
-      setCommitMessage("");
-      setUploadError(false);
-      setUploadMessage(data.message || `Successfully uploaded ${filesArr.length} file(s) and recorded commit.`);
-      setTimeout(() => setShowUploadModal(false), 1500);
     } catch (error) {
       console.error("Upload error:", error);
       setUploadError(true);
@@ -1323,11 +1350,25 @@ function RepoDetail() {
                         onDrop={handleDrop}
                       >
                         <div className="gh-dropzone-title">
-                          {uploading ? "Uploading files..." : `Branch "${activeBranch}" is currently empty`}
+                          {uploading ? `Uploading files... ${uploadProgress}%` : `Branch "${activeBranch}" is currently empty`}
                         </div>
                         <div className="gh-dropzone-sub">
                           Drag and drop files or folders here to upload files directly into {activeBranch}
                         </div>
+
+                        {uploading && (
+                          <div style={{ width: "80%", maxWidth: "320px", height: "8px", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: "4px", overflow: "hidden", margin: "14px auto 6px" }}>
+                            <div
+                              style={{
+                                width: `${uploadProgress}%`,
+                                height: "100%",
+                                background: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+                                borderRadius: "4px",
+                                transition: "width 0.2s ease"
+                              }}
+                            />
+                          </div>
+                        )}
 
                         {!uploading && (
                           <div className="gh-dropzone-actions">
@@ -1475,11 +1516,32 @@ function RepoDetail() {
                 />
               </div>
 
+              {uploading && (
+                <div style={{ marginTop: "16px", marginBottom: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#a7dda6", marginBottom: "6px", fontWeight: 600 }}>
+                    <span>Uploading files to repository...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div style={{ width: "100%", height: "8px", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: "4px", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: `${uploadProgress}%`,
+                        height: "100%",
+                        background: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+                        borderRadius: "4px",
+                        transition: "width 0.2s ease"
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
                 <button
                   type="button"
                   className="gh-btn"
                   onClick={() => setShowUploadModal(false)}
+                  disabled={uploading}
                 >
                   Cancel
                 </button>
@@ -1488,7 +1550,7 @@ function RepoDetail() {
                   className="gh-btn gh-btn-green"
                   disabled={uploading || filesToUpload.length === 0}
                 >
-                  {uploading ? "Uploading..." : "Upload & Commit"}
+                  {uploading ? `Uploading (${uploadProgress}%)...` : "Upload & Commit"}
                 </button>
               </div>
 

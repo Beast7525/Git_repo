@@ -83,27 +83,28 @@ router.get("/my-groups", async (req, res) => {
       return res.status(400).json({ message: "Username or email is required to fetch user groups." });
     }
 
+    const exact = (value) => new RegExp(`^${String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
     const query = {
       $or: [
-        { creator: new RegExp(`^${username}$`, "i") },
-        { creatorEmail: new RegExp(`^${email}$`, "i") },
-        { "members.username": new RegExp(`^${username}$`, "i") },
-        { "members.email": new RegExp(`^${email}$`, "i") }
+        ...(username ? [{ creator: exact(username) }, { "members.username": exact(username) }] : []),
+        ...(email ? [{ creatorEmail: exact(email) }, { "members.email": exact(email) }] : [])
       ]
     };
 
     const groups = await Group.find(query).populate("repositories").sort({ createdAt: -1 });
 
+    const isSame = (a, b) => Boolean(a) && Boolean(b) && String(a).toLowerCase() === String(b).toLowerCase();
+    const isCreatorOf = (obj) => isSame(obj.creator, username) || isSame(obj.creatorEmail, email);
+    const isMemberOf = (member) => isSame(member.username, username) || isSame(member.email, email);
+
     // Privacy filter: hide the admin-only groupId and invitation tokens.
-    // Members who declined are only visible to the group creator, so they can be re-invited.
+    // Members who declined are only listed for the group creator, so they can be re-invited.
     const safeGroups = groups
       .map((g) => {
         const obj = g.toObject();
         delete obj.groupId; // Only visible to admin
-        const requesterIsCreator =
-          (username && obj.creator && obj.creator.toLowerCase() === username.toLowerCase()) ||
-          (email && obj.creatorEmail && obj.creatorEmail.toLowerCase() === email.toLowerCase());
 
+        const requesterIsCreator = isCreatorOf(obj);
         obj.members = (obj.members || [])
           .filter((m) => requesterIsCreator || m.status !== "declined")
           .map((m) => {
@@ -112,12 +113,8 @@ router.get("/my-groups", async (req, res) => {
           });
         return obj;
       })
-      .filter((obj) => {
-        const requesterIsCreator =
-          (username && obj.creator && obj.creator.toLowerCase() === username.toLowerCase()) ||
-          (email && obj.creatorEmail && obj.creatorEmail.toLowerCase() === email.toLowerCase());
-        return requesterIsCreator || (obj.members && obj.members.length > 0);
-      });
+      // A group the requester only declined must not show up in their team list
+      .filter((obj) => isCreatorOf(obj) || (obj.members || []).some(isMemberOf));
 
     res.status(200).json(safeGroups);
   } catch (error) {
