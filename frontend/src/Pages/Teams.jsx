@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/Teams.css";
 import { useLoading } from "../context/LoadingContext";
@@ -12,6 +13,7 @@ const API_BASE_URL = (
 
 export default function Teams() {
   const { startLoading, stopLoading } = useLoading();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedGroupForMember, setSelectedGroupForMember] = useState(null);
@@ -21,6 +23,9 @@ export default function Teams() {
   const [newMemberForm, setNewMemberForm] = useState({ identifier: "", role: "editor" });
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+
+  const inviteResponse = searchParams.get("invite"); // "accepted" | "declined"
+  const inviteGroupName = searchParams.get("group") || "";
 
   // Retrieve logged-in user
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
@@ -51,6 +56,12 @@ export default function Teams() {
   useEffect(() => {
     loadUserGroups();
   }, [loggedInUsername, loggedInEmail]);
+
+  function dismissInviteResponse() {
+    const next = new URLSearchParams(searchParams);
+    ["invite", "group", "username", "declinedGroupId"].forEach((key) => next.delete(key));
+    setSearchParams(next, { replace: true });
+  }
 
   // Create Group Submit
   async function handleCreateGroup(e) {
@@ -177,6 +188,22 @@ export default function Teams() {
           </div>
         )}
 
+        {inviteResponse && (
+          <div className={`invite-banner ${inviteResponse === "accepted" ? "agreed" : "disagreed"}`}>
+            <div className="invite-banner-text">
+              <strong>{inviteResponse === "accepted" ? "✓ I Agree — response recorded" : "✕ I Disagree — response recorded"}</strong>
+              <span>
+                {inviteResponse === "accepted"
+                  ? `You are now an active member of ${inviteGroupName ? `the group "${inviteGroupName}"` : "the group"}.`
+                  : `You did not join ${inviteGroupName ? `the group "${inviteGroupName}"` : "the group"}.`}
+              </span>
+            </div>
+            <button type="button" className="invite-banner-close" onClick={dismissInviteResponse} aria-label="Dismiss">
+              &times;
+            </button>
+          </div>
+        )}
+
         <div className="teams-container">
           {groups.length > 0 ? (
             groups.map((group) => {
@@ -196,10 +223,13 @@ export default function Teams() {
                     {(group.members || []).map((m, idx) => {
                       const isMemberCreator = m.role === 'creator' || (m.username && m.username.toLowerCase() === (group.creator || "").toLowerCase());
                       const isPending = m.status === "pending";
+                      const isDeclined = m.status === "declined";
                       return (
                         <div key={m._id || idx} className="member-item">
                           <div className="member-info">
                             <span className="member-name">{m.username || m.email}</span>
+                            {isPending && <span className="member-status pending">Awaiting response</span>}
+                            {isDeclined && <span className="member-status declined">Declined</span>}
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>

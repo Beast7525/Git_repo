@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/Teams.css";
 
@@ -13,29 +13,35 @@ const API_BASE_URL = (
 export default function AcceptInvite() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
-  const navigate = useNavigate();
+  const errorFromLink = searchParams.get("status") === "error" ? searchParams.get("message") || "" : "";
 
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("idle"); // "idle", "success", "error"
-  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState("idle"); // "idle" | "accepted" | "declined" | "error"
+  const [message, setMessage] = useState(errorFromLink);
   const [groupName, setGroupName] = useState("");
 
   useEffect(() => {
+    if (errorFromLink) {
+      setStatus("error");
+      setMessage(errorFromLink);
+      return;
+    }
+
     if (!token) {
       setStatus("error");
       setMessage("No invitation token provided in the URL.");
-      return;
     }
-  }, [token]);
+  }, [token, errorFromLink]);
 
-  async function handleAccept() {
+  async function respond(decision) {
     if (!token) return;
     setLoading(true);
     setStatus("idle");
     setMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/groups/accept-invite`, {
+      const endpoint = decision === "accept" ? "accept-invite" : "decline-invite";
+      const res = await fetch(`${API_BASE_URL}/api/groups/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token })
@@ -43,15 +49,15 @@ export default function AcceptInvite() {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setStatus("success");
-        setMessage(data.message || "Invitation accepted successfully!");
+        setStatus(decision === "accept" ? "accepted" : "declined");
+        setMessage(data.message || (decision === "accept" ? "Invitation accepted successfully!" : "Invitation declined."));
         if (data.groupName) setGroupName(data.groupName);
       } else {
         setStatus("error");
         setMessage(data.message || "Failed to verify invitation token.");
       }
     } catch (err) {
-      console.error("Accept invitation error:", err);
+      console.error("Invitation response error:", err);
       setStatus("error");
       setMessage("Connection error: " + err.message);
     } finally {
@@ -59,115 +65,79 @@ export default function AcceptInvite() {
     }
   }
 
+  const groupPageLink = (
+    <Link to="/teams" className="btn-invite-primary">
+      Go to Group Page
+    </Link>
+  );
+
   return (
     <main className="teams-page-layout">
       <User_header />
-      <div
-        style={{
-          minHeight: "80vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "20px"
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "480px",
-            width: "100%",
-            background: "#0d1711",
-            border: "1px solid rgba(167, 221, 166, 0.25)",
-            borderRadius: "16px",
-            padding: "36px 30px",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
-            textAlign: "center"
-          }}
-        >
-          {status === "success" ? (
+      <div className="invite-response-wrap">
+        <div className="invite-response-card">
+          {status === "accepted" && (
             <>
-              <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  borderRadius: "50%",
-                  background: "rgba(16, 185, 129, 0.2)",
-                  color: "#10b981",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 20px",
-                  fontSize: "2rem"
-                }}
-              >
-                ✓
-              </div>
-              <h2 style={{ color: "#ffffff", margin: "0 0 8px" }}>Invitation Accepted!</h2>
-              {groupName && (
-                <p style={{ color: "#a7dda6", fontWeight: "600", fontSize: "1.1rem", margin: "0 0 16px" }}>
-                  You are now an active member of "{groupName}"
-                </p>
-              )}
-              <p style={{ color: "#9eafa3", fontSize: "0.9rem", marginBottom: "24px" }}>
-                {message}
-              </p>
-              <button
-                className="btn-create-team"
-                style={{ width: "100%", padding: "12px" }}
-                onClick={() => navigate("/teams")}
-              >
-                Go to My Teams Workspace
-              </button>
+              <div className="invite-response-icon accepted">✓</div>
+              <h2>Invitation Accepted!</h2>
+              {groupName && <p className="invite-response-group">You are now an active member of "{groupName}"</p>}
+              <p className="invite-response-text">{message}</p>
+              {groupPageLink}
             </>
-          ) : (
+          )}
+
+          {status === "declined" && (
             <>
-              <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  borderRadius: "50%",
-                  background: "rgba(167, 221, 166, 0.15)",
-                  color: "#a7dda6",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 20px",
-                  fontSize: "1.8rem"
-                }}
-              >
-                ✉️
-              </div>
-              <h2 style={{ color: "#ffffff", margin: "0 0 8px" }}>Team Group Invitation</h2>
-              <p style={{ color: "#9eafa3", fontSize: "0.9rem", marginBottom: "24px" }}>
-                You have been invited to join a team group on Gitrepo. Click below to accept and verify your membership.
+              <div className="invite-response-icon declined">✕</div>
+              <h2>Invitation Declined</h2>
+              {groupName && <p className="invite-response-group">You did not join "{groupName}"</p>}
+              <p className="invite-response-text">{message}</p>
+              <Link to="/teams" className="btn-invite-secondary">
+                Back to Teams
+              </Link>
+            </>
+          )}
+
+          {status === "idle" && (
+            <>
+              <div className="invite-response-icon pending">✉️</div>
+              <h2>Team Group Invitation</h2>
+              <p className="invite-response-text">
+                You have been invited to join a team group on Gitrepo. Please confirm your response below.
               </p>
 
-              {status === "error" && (
-                <div
-                  style={{
-                    background: "rgba(239, 68, 68, 0.15)",
-                    border: "1px solid #ef4444",
-                    color: "#f87171",
-                    padding: "12px",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    marginBottom: "20px"
-                  }}
+              <div className="invite-response-actions">
+                <button
+                  type="button"
+                  className="btn-invite-primary"
+                  onClick={() => respond("accept")}
+                  disabled={loading || !token}
                 >
-                  {message}
-                </div>
-              )}
+                  {loading ? "Processing..." : "✓ I Agree"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-invite-secondary"
+                  onClick={() => respond("decline")}
+                  disabled={loading || !token}
+                >
+                  ✕ I Disagree
+                </button>
+              </div>
 
-              <button
-                className="btn-create-team"
-                style={{ width: "100%", padding: "12px", marginBottom: "12px" }}
-                onClick={handleAccept}
-                disabled={loading || !token}
-              >
-                {loading ? "Verifying..." : "Accept Invitation"}
-              </button>
+              <small className="invite-response-hint">
+                Agreeing makes you an active member of the group. Disagreeing rejects the invitation.
+              </small>
+            </>
+          )}
 
-              <Link to="/teams" style={{ color: "#748779", fontSize: "0.85rem", textDecoration: "none" }}>
-                Return to Teams
+          {status === "error" && (
+            <>
+              <div className="invite-response-icon pending">⚠️</div>
+              <h2>Invitation Unavailable</h2>
+              <div className="invite-response-error">{message}</div>
+              <Link to="/teams" className="btn-invite-secondary">
+                Back to Teams
               </Link>
             </>
           )}

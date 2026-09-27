@@ -10,10 +10,11 @@ const memberSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["pending", "accepted"],
+    enum: ["pending", "accepted", "declined"],
     default: "accepted"
   },
   inviteToken: { type: String },
+  respondedAt: { type: Date },
   joinedAt: { type: Date, default: Date.now }
 }, { _id: true });
 

@@ -11,6 +11,30 @@ const mailTransport = nodemailer.createTransport({
   },
 });
 
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function safeUrl(value, fallback) {
+  try {
+    const url = new URL(String(value));
+    if (url.protocol !== "http:" && url.protocol !== "https:") return fallback;
+    return url.toString();
+  } catch {
+    return fallback;
+  }
+}
+
+// Strip characters that would allow SMTP header injection
+function safeHeader(value) {
+  return String(value == null ? "" : value).replace(/[\r\n]+/g, " ").trim();
+}
+
 async function sendWithRetry(mailOptions, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -73,37 +97,65 @@ async function sendSuspensionEmail(toEmail, username, reason, durationDays, unti
   }
 }
 
-async function sendGroupInvitationEmail(toEmail, memberUsername, groupName, creatorName, acceptUrl) {
+async function sendGroupInvitationEmail(toEmail, memberUsername, groupName, creatorName, acceptUrl, declineUrl) {
   if (!mailUser || !mailPassword) {
     console.warn("⚠️ Mail credentials not configured. Skipping group invitation email.");
     return false;
   }
 
-  const subject = `Invitation to join group "${groupName}" on Gitrepo`;
+  const safeGroupName = escapeHtml(groupName);
+  const safeMemberName = escapeHtml(memberUsername || "Developer");
+  const safeCreatorName = escapeHtml(creatorName || "A team owner");
+  const agreeUrl = safeUrl(acceptUrl, "");
+  const disagreeUrl = safeUrl(declineUrl, "");
+  const hasDisagree = Boolean(disagreeUrl);
+
+  const subject = `Invitation to join group "${safeHeader(groupName)}" on Gitrepo`;
+
   const textBody = `Hello ${memberUsername || "Developer"},\n\n` +
     `${creatorName || "A team creator"} has invited you to join the team group "${groupName}" on Gitrepo.\n\n` +
-    `To accept this invitation and become a member of the group, please click the link below:\n` +
-    `${acceptUrl}\n\n` +
-    `If you did not expect this invitation, you can safely ignore this email.\n\n` +
+    `Please confirm your response using the links below:\n` +
+    `I AGREE (accept invitation):\n${acceptUrl}\n\n` +
+    `I DISAGREE (decline invitation):\n${declineUrl}\n\n` +
     `Best regards,\nGitrepo Team`;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background-color: #0d1711; color: #e7f1e5; border-radius: 12px; border: 1px solid rgba(167, 221, 166, 0.2);">
       <h2 style="color: #a7dda6; margin-top: 0; font-size: 1.4rem;">🎉 Team Group Invitation</h2>
-      <p style="font-size: 1rem; color: #d0e0d5;">Hello <strong>${memberUsername || "Developer"}</strong>,</p>
+      <p style="font-size: 1rem; color: #d0e0d5;">Hello <strong>${safeMemberName}</strong>,</p>
       <p style="color: #9eafa3; line-height: 1.5;">
-        <strong>${creatorName || "A team owner"}</strong> has invited you to join the group <strong style="color: #ffffff;">${groupName}</strong> on Gitrepo.
+        <strong>${safeCreatorName}</strong> has invited you to join the group <strong style="color: #ffffff;">${safeGroupName}</strong> on Gitrepo.
       </p>
-      
+
       <div style="margin: 28px 0; text-align: center;">
-        <a href="${acceptUrl}" target="_blank" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 1rem; display: inline-block; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-          ✓ Accept Invitation
-        </a>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+          <tr>
+            <td style="padding: 0 6px;">
+              <a href="${agreeUrl}" target="_blank" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 1rem; display: inline-block; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+                ✓ I Agree
+              </a>
+            </td>
+            ${
+              hasDisagree
+                ? `<td style="padding: 0 6px;">
+              <a href="${disagreeUrl}" target="_blank" style="background: transparent; color: #f87171; text-decoration: none; padding: 14px 28px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.55); font-weight: bold; font-size: 1rem; display: inline-block;">
+                ✕ I Disagree
+              </a>
+            </td>`
+                : ""
+            }
+          </tr>
+        </table>
+        <p style="font-size: 0.8rem; color: #748779; margin: 16px 0 0;">
+          Clicking <strong style="color: #10b981;">I Agree</strong> confirms your membership and opens the group page on Gitrepo.
+          Clicking <strong style="color: #f87171;">I Disagree</strong> declines the invitation.
+        </p>
       </div>
 
       <p style="font-size: 0.82rem; color: #748779; word-break: break-all;">
-        If the button above does not work, copy and paste this link into your browser:<br />
-        <a href="${acceptUrl}" style="color: #a7dda6;">${acceptUrl}</a>
+        If the buttons above do not work, copy and paste these links into your browser:<br />
+        <a href="${agreeUrl}" style="color: #a7dda6;">I Agree: ${agreeUrl}</a><br />
+        ${hasDisagree ? `<a href="${disagreeUrl}" style="color: #f87171;">I Disagree: ${disagreeUrl}</a>` : ""}
       </p>
       <hr style="border: 0; border-top: 1px solid rgba(167, 221, 166, 0.2); margin: 24px 0;" />
       <p style="font-size: 0.8rem; color: #748779; margin: 0;">Gitrepo Team Collaboration</p>

@@ -12,6 +12,55 @@ function generateUniqueGroupId() {
   return `GRP-${hex}`;
 }
 
+function trimTrailingSlash(value) {
+  return String(value || "").replace(/\/+$/, "");
+}
+
+// Public base URL of the frontend site (used to build the links inside invitation emails)
+function getFrontendUrl(req) {
+  const fromEnv = trimTrailingSlash(process.env.FRONTEND_URL);
+  if (fromEnv) return fromEnv;
+
+  const origin = trimTrailingSlash(req.get("origin") || "");
+  if (origin) return origin.replace(/\/teams.*$/, "").replace(/\/accept-invite.*$/, "");
+
+  return "http://localhost:5173";
+}
+
+// Public base URL of this API (email clients hit these links directly)
+function getApiUrl(req) {
+  const fromEnv = trimTrailingSlash(process.env.SERVER_URL);
+  if (fromEnv) return fromEnv;
+
+  const forwardedProto = (req.get("x-forwarded-proto") || "").split(",")[0].trim();
+  const protocol = forwardedProto || req.protocol || "http";
+  return trimTrailingSlash(`${protocol}://${req.get("host")}`);
+}
+
+function buildInviteLinks(req, inviteToken) {
+  const frontendUrl = getFrontendUrl(req);
+  const apiUrl = getApiUrl(req);
+  const query = `token=${encodeURIComponent(inviteToken)}`;
+
+  return {
+    acceptUrl: `${apiUrl}/api/groups/invite-response?${query}&response=accept`,
+    declineUrl: `${apiUrl}/api/groups/invite-response?${query}&response=decline`,
+    pageUrl: `${frontendUrl}/accept-invite?${query}`,
+  };
+}
+
+// Strip admin-only and internal fields (unique groupId, invite tokens) before sending a group to the client
+function sanitizeGroup(group) {
+  const obj = group.toObject ? group.toObject() : { ...group };
+  delete obj.groupId;
+  obj.members = (obj.members || []).map((m) => {
+    const member = m.toObject ? m.toObject() : { ...m };
+    delete member.inviteToken;
+    return member;
+  });
+  return obj;
+}
+
 // GET /api/groups/my-groups - Get groups for current user (hides unique groupId for non-admin)
 router.get("/my-groups", async (req, res) => {
   try {
@@ -33,12 +82,30 @@ router.get("/my-groups", async (req, res) => {
 
     const groups = await Group.find(query).populate("repositories").sort({ createdAt: -1 });
 
-    // Privacy filter: Hide raw groupId for standard user view
-    const safeGroups = groups.map((g) => {
-      const obj = g.toObject();
-      delete obj.groupId; // Only visible to admin
-      return obj;
-    });
+    // Privacy filter: hide the admin-only groupId and invitation tokens.
+    // Members who declined are only visible to the group creator, so they can be re-invited.
+    const safeGroups = groups
+      .map((g) => {
+        const obj = g.toObject();
+        delete obj.groupId; // Only visible to admin
+        const requesterIsCreator =
+          (username && obj.creator && obj.creator.toLowerCase() === username.toLowerCase()) ||
+          (email && obj.creatorEmail && obj.creatorEmail.toLowerCase() === email.toLowerCase());
+
+        obj.members = (obj.members || [])
+          .filter((m) => requesterIsCreator || m.status !== "declined")
+          .map((m) => {
+            delete m.inviteToken;
+            return m;
+          });
+        return obj;
+      })
+      .filter((obj) => {
+        const requesterIsCreator =
+          (username && obj.creator && obj.creator.toLowerCase() === username.toLowerCase()) ||
+          (email && obj.creatorEmail && obj.creatorEmail.toLowerCase() === email.toLowerCase());
+        return requesterIsCreator || (obj.members && obj.members.length > 0);
+      });
 
     res.status(200).json(safeGroups);
   } catch (error) {
@@ -83,8 +150,7 @@ router.post("/", async (req, res) => {
     await newGroup.save();
 
     // Return safe object without groupId for standard creator response
-    const resObj = newGroup.toObject();
-    delete resObj.groupId;
+    const resObj = sanitizeGroup(newGroup);
 
     res.status(201).json({ message: "Group created successfully", group: resObj });
   } catch (error) {
@@ -95,38 +161,117 @@ router.post("/", async (req, res) => {
 
 const { sendGroupInvitationEmail } = require("../mailer");
 
+// Apply an invitation response ("accept" | "decline") to a pending member
+async function respondToInvitation(token, response) {
+  const inviteToken = (token || "").trim();
+  const decision = response === "decline" || response === "declined" ? "declined" : "accepted";
+
+  if (!inviteToken) {
+    return { ok: false, status: 400, message: "Invitation token is required." };
+  }
+
+  const group = await Group.findOne({ "members.inviteToken": inviteToken });
+  if (!group) {
+    return { ok: false, status: 404, message: "Invalid or expired invitation token." };
+  }
+
+  const member = group.members.find((m) => m.inviteToken === inviteToken);
+  if (!member) {
+    return { ok: false, status: 404, message: "Invitation member record not found." };
+  }
+
+  const isDecline = decision === "declined";
+  member.status = decision;
+  member.inviteToken = undefined;
+  member.respondedAt = new Date();
+  await group.save();
+
+  return {
+    ok: true,
+    status: 200,
+    decision,
+    memberUsername: member.username,
+    groupId: group._id.toString(),
+    groupName: group.name,
+    message: isDecline
+      ? `Invitation declined. You did not join the group "${group.name}".`
+      : `Invitation accepted successfully! You are now an active member of group "${group.name}".`,
+  };
+}
+
+// GET /api/groups/invite-response - One-click handler behind the "I Agree" / "I Disagree" email buttons
+router.get("/invite-response", async (req, res) => {
+  const frontendUrl = getFrontendUrl(req);
+  const { token, response } = req.query;
+
+  try {
+    const result = await respondToInvitation(token, response);
+
+    if (!result.ok) {
+      return res.redirect(
+        `${frontendUrl}/accept-invite?token=${encodeURIComponent((token || "").trim())}&status=error&message=${encodeURIComponent(result.message)}`
+      );
+    }
+
+    const params = new URLSearchParams({
+      invite: result.decision,
+      group: result.groupName,
+      username: result.memberUsername,
+    });
+    if (result.decision === "declined") {
+      params.append("declinedGroupId", result.groupId);
+    }
+
+    return res.redirect(`${frontendUrl}/teams?${params.toString()}`);
+  } catch (error) {
+    console.error("Error handling invitation response:", error);
+    return res.redirect(
+      `${frontendUrl}/accept-invite?token=${encodeURIComponent((token || "").trim())}&status=error&message=${encodeURIComponent("Error processing invitation: " + error.message)}`
+    );
+  }
+});
+
 // POST /api/groups/accept-invite - Accept team group member invitation via token
 router.post("/accept-invite", async (req, res) => {
   try {
     const { token } = req.body || {};
-    const inviteToken = (token || "").trim();
+    const result = await respondToInvitation(token, "accept");
 
-    if (!inviteToken) {
-      return res.status(400).json({ message: "Invitation token is required." });
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
     }
-
-    const group = await Group.findOne({ "members.inviteToken": inviteToken });
-    if (!group) {
-      return res.status(404).json({ message: "Invalid or expired invitation token." });
-    }
-
-    const member = group.members.find((m) => m.inviteToken === inviteToken);
-    if (!member) {
-      return res.status(404).json({ message: "Invitation member record not found." });
-    }
-
-    member.status = "accepted";
-    member.inviteToken = undefined;
-    await group.save();
 
     res.status(200).json({
-      message: `Invitation accepted successfully! You are now an active member of group "${group.name}".`,
-      groupName: group.name,
-      username: member.username
+      message: result.message,
+      groupName: result.groupName,
+      groupId: result.groupId,
+      username: result.memberUsername,
     });
   } catch (error) {
     console.error("Error accepting group invitation:", error);
     res.status(500).json({ message: "Error accepting invitation: " + error.message });
+  }
+});
+
+// POST /api/groups/decline-invite - Decline team group member invitation via token
+router.post("/decline-invite", async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    const result = await respondToInvitation(token, "decline");
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    res.status(200).json({
+      message: result.message,
+      groupName: result.groupName,
+      groupId: result.groupId,
+      username: result.memberUsername,
+    });
+  } catch (error) {
+    console.error("Error declining group invitation:", error);
+    res.status(500).json({ message: "Error declining invitation: " + error.message });
   }
 });
 
@@ -172,24 +317,21 @@ router.post("/:id/members", async (req, res) => {
     let inviteToken = crypto.randomBytes(24).toString("hex");
 
     if (existingMember) {
-      if (existingMember.status === "pending") {
-        // Refresh token and resend invitation email
+      if (existingMember.status === "pending" || existingMember.status === "declined") {
+        // Refresh token and resend invitation email (re-inviting a declined member)
         existingMember.inviteToken = inviteToken;
+        existingMember.status = "pending";
+        existingMember.respondedAt = undefined;
         if (finalEmail) existingMember.email = finalEmail;
         await group.save();
 
-        const requestHeaderOrigin = req.get("origin") || req.get("referer") || "http://localhost:5173";
-        const cleanOrigin = requestHeaderOrigin.replace(/\/+$/, "").replace(/\/teams.*$/, "");
-        const acceptUrl = `${cleanOrigin}/accept-invite?token=${inviteToken}`;
+        const links = buildInviteLinks(req, inviteToken);
+        const sent = await sendGroupInvitationEmail(
+          finalEmail, finalUsername, group.name, group.creator, links.acceptUrl, links.declineUrl
+        );
+        const emailStatus = sent ? "sent" : "could not be sent (check backend console for the SMTP error)";
 
-        let emailStatus = "queued";
-        if (finalEmail) {
-          const sent = await sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl);
-          emailStatus = sent ? "sent" : "could not be sent (check backend console for the SMTP error)";
-        }
-
-        const resObj = group.toObject();
-        delete resObj.groupId;
+        const resObj = sanitizeGroup(group);
 
         return res.status(200).json({
           message: `Invitation email ${emailStatus} to ${finalEmail || finalUsername}.`,
@@ -213,22 +355,21 @@ router.post("/:id/members", async (req, res) => {
 
     await group.save();
 
-    // Construct accept verification URL
-    const requestHeaderOrigin = req.get("origin") || req.get("referer") || "http://localhost:5173";
-    const cleanOrigin = requestHeaderOrigin.replace(/\/+$/, "").replace(/\/teams.*$/, "");
-    const acceptUrl = `${cleanOrigin}/accept-invite?token=${inviteToken}`;
+    // Build the "I Agree" / "I Disagree" links used by the invitation email
+    const links = buildInviteLinks(req, inviteToken);
 
     let emailStatus = "queued";
     if (finalEmail) {
-      const sent = await sendGroupInvitationEmail(finalEmail, finalUsername, group.name, group.creator, acceptUrl);
+      const sent = await sendGroupInvitationEmail(
+        finalEmail, finalUsername, group.name, group.creator, links.acceptUrl, links.declineUrl
+      );
       emailStatus = sent ? "sent" : "could not be sent (check backend console for the SMTP error)";
       if (!sent) {
-        console.warn(`⚠️ Invitation email for ${finalEmail} could NOT be sent.`);
+        console.warn(`Invitation email for ${finalEmail} could NOT be sent.`);
       }
     }
 
-    const resObj = group.toObject();
-    delete resObj.groupId;
+    const resObj = sanitizeGroup(group);
 
     res.status(200).json({
       message: emailStatus === "sent"
@@ -263,8 +404,7 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
     member.role = role;
     await group.save();
 
-    const resObj = group.toObject();
-    delete resObj.groupId;
+    const resObj = sanitizeGroup(group);
 
     res.status(200).json({ message: "Member role updated successfully", group: resObj });
   } catch (error) {
@@ -289,8 +429,7 @@ router.delete("/:id/members/:memberId", async (req, res) => {
     group.members.splice(memberIndex, 1);
     await group.save();
 
-    const resObj = group.toObject();
-    delete resObj.groupId;
+    const resObj = sanitizeGroup(group);
 
     res.status(200).json({ message: "Member removed successfully", group: resObj });
   } catch (error) {

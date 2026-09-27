@@ -337,3 +337,217 @@
   margin: 0 0 20px;
   font-size: 0.92rem;
 }
+
+.member-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.member-status.pending {
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  color: #facc15;
+}
+
+.member-status.declined {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.invite-banner {
+  max-width: 1000px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 221, 166, 0.2);
+  background: rgba(15, 29, 20, 0.85);
+}
+
+.invite-banner.agreed {
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.invite-banner.disagreed {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.invite-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.invite-banner-text strong {
+  font-size: 0.95rem;
+  color: #ffffff;
+}
+
+.invite-banner.agreed .invite-banner-text strong {
+  color: #34d399;
+}
+
+.invite-banner.disagreed .invite-banner-text strong {
+  color: #f87171;
+}
+
+.invite-banner-text span {
+  font-size: 0.85rem;
+  color: #9eafa3;
+}
+
+.invite-banner-close {
+  background: transparent;
+  border: none;
+  color: #9eafa3;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.invite-banner-close:hover {
+  color: #ffffff;
+}
+
+.invite-response-wrap {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.invite-response-card {
+  max-width: 480px;
+  width: 100%;
+  background: #0d1711;
+  border: 1px solid rgba(167, 221, 166, 0.25);
+  border-radius: 16px;
+  padding: 36px 30px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.invite-response-card h2 {
+  color: #ffffff;
+  margin: 0 0 8px;
+}
+
+.invite-response-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 1.8rem;
+}
+
+.invite-response-icon.accepted {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  font-size: 2rem;
+}
+
+.invite-response-icon.declined {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  font-size: 2rem;
+}
+
+.invite-response-icon.pending {
+  background: rgba(167, 221, 166, 0.15);
+  color: #a7dda6;
+}
+
+.invite-response-group {
+  color: #a7dda6;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+
+.invite-response-text {
+  color: #9eafa3;
+  font-size: 0.9rem;
+  margin: 0 0 24px;
+}
+
+.invite-response-error {
+  width: 100%;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #f87171;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+}
+
+.invite-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.invite-response-hint {
+  color: #748779;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.btn-invite-primary,
+.btn-invite-secondary {
+  display: inline-block;
+  padding: 12px 26px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-invite-primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+
+.btn-invite-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn-invite-secondary {
+  background: transparent;
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.btn-invite-secondary:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.btn-invite-primary:disabled,
+.btn-invite-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
