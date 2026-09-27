@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const dns = require("dns");
 const { authorizeB2 } = require("./backblaze");
 
 const app = express();
@@ -51,8 +52,30 @@ app.listen(PORT, () => {
 });
 
 // MongoDB Connection
-mongoose
-  .connect(process.env.MONGO_URI)
+// Some local DNS proxies (VPN clients / firewalls listening on 127.0.0.1) refuse the
+// SRV lookups that a mongodb+srv:// connection string needs. When that happens every
+// query just hangs until mongoose gives up with "buffering timed out", so fall back
+// to public resolvers and try again.
+function isDnsError(error) {
+  const message = `${error && error.message}`;
+  return /querySrv|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(message);
+}
+
+async function connectMongo() {
+  const uri = process.env.MONGO_URI;
+
+  try {
+    await mongoose.connect(uri);
+  } catch (error) {
+    if (!isDnsError(error)) throw error;
+
+    console.warn("MongoDB DNS lookup failed on the system resolver, retrying with public DNS...");
+    dns.setServers(["8.8.8.8", "1.1.1.1"]);
+    await mongoose.connect(uri);
+  }
+}
+
+connectMongo()
   .then(() => {
     console.log("MongoDB Atlas connected successfully");
   })
