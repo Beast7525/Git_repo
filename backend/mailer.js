@@ -1,10 +1,12 @@
 const nodemailer = require("nodemailer");
 
-const mailUser = process.env.MAIL_USER;
-const mailPassword = process.env.MAIL_PASSWORD || process.env.MAIL_PASS;
+const mailUser = (process.env.MAIL_USER || "").trim();
+// Google prints app passwords in blocks of four, so the copy-pasted value often carries spaces
+const mailPassword = (process.env.MAIL_PASSWORD || process.env.MAIL_PASS || "").replace(/\s+/g, "");
 
 const mailTransport = nodemailer.createTransport({
   service: "gmail",
+  pool: true,
   auth: {
     user: mailUser,
     pass: mailPassword,
@@ -35,19 +37,29 @@ function safeHeader(value) {
   return String(value == null ? "" : value).replace(/[\r\n]+/g, " ").trim();
 }
 
-async function sendWithRetry(mailOptions, retries = 3) {
+function describeMailError(err) {
+  if (!err) return "Unknown SMTP error";
+  const status = err.responseCode || err.code || "";
+  return [status, err.message].filter(Boolean).join(" - ");
+}
+
+async function sendWithRetry(mailOptions, retries = 2) {
+  let lastError = null;
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await mailTransport.sendMail(mailOptions);
-      return true;
+      return { ok: true, error: null };
     } catch (err) {
+      lastError = err;
       const isLast = attempt === retries;
       console.error(`❌ Email send attempt ${attempt}/${retries} failed:`, err.message);
-      if (isLast) return false;
-      await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      if (isLast) return { ok: false, error: describeMailError(err) };
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
     }
   }
-  return false;
+
+  return { ok: false, error: describeMailError(lastError) };
 }
 
 async function sendSuspensionEmail(toEmail, username, reason, durationDays, untilDate) {
@@ -81,7 +93,7 @@ async function sendSuspensionEmail(toEmail, username, reason, durationDays, unti
   `;
 
   try {
-    const ok = await sendWithRetry({
+    const { ok } = await sendWithRetry({
       from: `Gitrepo Admin <${mailUser}>`,
       to: toEmail,
       subject: subject,
@@ -100,7 +112,7 @@ async function sendSuspensionEmail(toEmail, username, reason, durationDays, unti
 async function sendGroupInvitationEmail(toEmail, memberUsername, groupName, creatorName, acceptUrl, declineUrl) {
   if (!mailUser || !mailPassword) {
     console.warn("⚠️ Mail credentials not configured. Skipping group invitation email.");
-    return false;
+    return { sent: false, error: "MAIL_USER / MAIL_PASSWORD are not set in the backend .env" };
   }
 
   const safeGroupName = escapeHtml(groupName);
@@ -163,19 +175,19 @@ async function sendGroupInvitationEmail(toEmail, memberUsername, groupName, crea
   `;
 
   try {
-    const ok = await sendWithRetry({
+    const { ok, error } = await sendWithRetry({
       from: `Gitrepo Team <${mailUser}>`,
       to: toEmail,
       subject: subject,
       text: textBody,
       html: htmlBody,
     });
-    if (!ok) return false;
+    if (!ok) return { sent: false, error };
     console.log(`✉️ Group invitation email sent successfully to ${toEmail}`);
-    return true;
+    return { sent: true, error: null };
   } catch (err) {
     console.error("❌ Failed to send group invitation email:", err.message);
-    return false;
+    return { sent: false, error: describeMailError(err) };
   }
 }
 

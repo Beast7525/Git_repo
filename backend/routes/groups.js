@@ -16,20 +16,32 @@ function trimTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
 }
 
+// Keep only the origin of a configured base URL, so values such as
+// "https://site.com/teams" still produce "https://site.com/accept-invite"
+function toOrigin(value, fallback) {
+  const raw = trimTrailingSlash(value);
+  if (!raw) return fallback;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/[^/]*$/, "");
+  }
+}
+
 // Public base URL of the frontend site (used to build the links inside invitation emails)
 function getFrontendUrl(req) {
-  const fromEnv = trimTrailingSlash(process.env.FRONTEND_URL);
+  const fromEnv = toOrigin(process.env.FRONTEND_URL, "");
   if (fromEnv) return fromEnv;
 
-  const origin = trimTrailingSlash(req.get("origin") || "");
-  if (origin) return origin.replace(/\/teams.*$/, "").replace(/\/accept-invite.*$/, "");
+  const origin = toOrigin(req.get("origin") || req.get("referer") || "", "");
+  if (origin) return origin;
 
   return "http://localhost:5173";
 }
 
 // Public base URL of this API (email clients hit these links directly)
 function getApiUrl(req) {
-  const fromEnv = trimTrailingSlash(process.env.SERVER_URL);
+  const fromEnv = toOrigin(process.env.SERVER_URL, "");
   if (fromEnv) return fromEnv;
 
   const forwardedProto = (req.get("x-forwarded-proto") || "").split(",")[0].trim();
@@ -326,15 +338,17 @@ router.post("/:id/members", async (req, res) => {
         await group.save();
 
         const links = buildInviteLinks(req, inviteToken);
-        const sent = await sendGroupInvitationEmail(
+        const { sent, error } = await sendGroupInvitationEmail(
           finalEmail, finalUsername, group.name, group.creator, links.acceptUrl, links.declineUrl
         );
-        const emailStatus = sent ? "sent" : "could not be sent (check backend console for the SMTP error)";
+        const emailStatus = sent ? "sent" : `could not be sent (${error})`;
 
         const resObj = sanitizeGroup(group);
 
         return res.status(200).json({
           message: `Invitation email ${emailStatus} to ${finalEmail || finalUsername}.`,
+          emailSent: sent,
+          emailError: sent ? null : error,
           group: resObj
         });
       }
@@ -357,15 +371,20 @@ router.post("/:id/members", async (req, res) => {
 
     // Build the "I Agree" / "I Disagree" links used by the invitation email
     const links = buildInviteLinks(req, inviteToken);
+    console.log(`🔗 Invitation links for ${finalUsername} (${finalEmail}):`);
+    console.log(`   I Agree   -> ${links.acceptUrl}`);
+    console.log(`   I Disagree-> ${links.declineUrl}`);
 
     let emailStatus = "queued";
+    let emailError = null;
     if (finalEmail) {
-      const sent = await sendGroupInvitationEmail(
+      const { sent, error } = await sendGroupInvitationEmail(
         finalEmail, finalUsername, group.name, group.creator, links.acceptUrl, links.declineUrl
       );
-      emailStatus = sent ? "sent" : "could not be sent (check backend console for the SMTP error)";
+      emailStatus = sent ? "sent" : `could not be sent (${error})`;
+      emailError = sent ? null : error;
       if (!sent) {
-        console.warn(`Invitation email for ${finalEmail} could NOT be sent.`);
+        console.warn(`Invitation email for ${finalEmail} could NOT be sent: ${error}`);
       }
     }
 
@@ -373,8 +392,10 @@ router.post("/:id/members", async (req, res) => {
 
     res.status(200).json({
       message: emailStatus === "sent"
-        ? `Invitation email sent to ${finalEmail}. They will become an active member upon accepting the invitation.`
+        ? `Invitation email sent to ${finalEmail}. They will become an active member upon clicking "I Agree", or be skipped upon clicking "I Disagree".`
         : `Invitation email ${emailStatus} to ${finalEmail || finalUsername}.`,
+      emailSent: emailStatus === "sent",
+      emailError,
       group: resObj
     });
   } catch (error) {
