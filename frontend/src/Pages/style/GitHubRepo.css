@@ -399,6 +399,11 @@
   pointer-events: none;
 }
 
+.gitgraph-svg circle {
+  pointer-events: auto;
+  cursor: help;
+}
+
 .gitgraph-rows {
   grid-column: 2;
   min-width: 0;

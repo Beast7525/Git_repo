@@ -17,6 +17,47 @@ const API_BASE_URL = (
 
 const GRAPH_BRANCH_COLORS = ["#0098ff", "#21ba45", "#d29922", "#bc8cff", "#f778ba", "#f85149", "#39c5cf"];
 
+function getCommitTooltip(commit, olderCommit, ownerName, defaultBranch) {
+  const date = commit.committedAt ? new Date(commit.committedAt).toLocaleString() : "Recently";
+  const details = [
+    commit.message || "Commit update",
+    `Author: ${commit.author || ownerName}`,
+    `When: ${date}`,
+    `Branch: ${commit.branch || defaultBranch || "main"}`,
+  ];
+
+  if (!Array.isArray(commit.snapshotFiles)) {
+    details.push("Files changed: unavailable");
+    return details.join("\n");
+  }
+
+  if (!Array.isArray(olderCommit?.snapshotFiles)) {
+    details.push(`Files in snapshot: ${commit.snapshotFiles.length}`);
+    return details.join("\n");
+  }
+
+  const before = new Map(olderCommit.snapshotFiles.map((file) => [file.path, file]));
+  const after = new Map(commit.snapshotFiles.map((file) => [file.path, file]));
+  const changedFiles = [];
+
+  for (const [filePath, file] of after) {
+    const previous = before.get(filePath);
+    if (!previous || previous.size !== file.size || previous.content !== file.content) {
+      changedFiles.push(filePath);
+    }
+  }
+  for (const filePath of before.keys()) {
+    if (!after.has(filePath)) changedFiles.push(`${filePath} (deleted)`);
+  }
+
+  details.push(
+    changedFiles.length
+      ? `Files changed: ${changedFiles.slice(0, 8).join(", ")}${changedFiles.length > 8 ? `, +${changedFiles.length - 8} more` : ""}`
+      : "Files changed: none detected"
+  );
+  return details.join("\n");
+}
+
 async function extractFilesFromDataTransfer(dataTransfer) {
   const files = [];
 
@@ -883,23 +924,26 @@ function RepoDetail() {
     repo.defaultBranch || "main",
     ...rawHistory.map((commit) => commit.branch || repo.defaultBranch || "main"),
   ])];
-  const visibleGraphHistory = graphBranchFilter === "all"
-    ? rawHistory
-    : rawHistory.filter((commit) => (commit.branch || repo.defaultBranch || "main") === graphBranchFilter);
+  const visibleGraphHistory = rawHistory
+    .map((commit, historyIndex) => ({ commit, historyIndex }))
+    .filter(({ commit }) => graphBranchFilter === "all" ||
+      (commit.branch || repo.defaultBranch || "main") === graphBranchFilter);
   const graphRowHeight = 48;
   const graphLaneWidth = Math.max(76, graphBranches.length * 34 + 16);
   const graphHeight = Math.max(graphRowHeight, visibleGraphHistory.length * graphRowHeight);
-  const graphNodes = visibleGraphHistory.map((commit, index) => {
+  const graphNodes = visibleGraphHistory.map(({ commit, historyIndex }, index) => {
     const branch = commit.branch || repo.defaultBranch || "main";
     const laneIndex = Math.max(0, graphBranches.indexOf(branch));
     return {
       commit,
       index,
+      historyIndex,
       branch,
       laneIndex,
       x: laneIndex * 34 + 20,
       y: index * graphRowHeight + graphRowHeight / 2,
       color: GRAPH_BRANCH_COLORS[laneIndex % GRAPH_BRANCH_COLORS.length],
+      tooltip: getCommitTooltip(commit, rawHistory[historyIndex + 1], ownerName, repo.defaultBranch),
     };
   });
 
@@ -1091,7 +1135,8 @@ function RepoDetail() {
                     width={graphLaneWidth}
                     height={graphHeight}
                     viewBox={`0 0 ${graphLaneWidth} ${graphHeight}`}
-                    aria-hidden="true"
+                    role="img"
+                    aria-label="Commit graph. Hover over a node for commit details."
                   >
                     {graphBranches.flatMap((branch, laneIndex) => {
                       const branchNodes = graphNodes.filter((node) => node.branch === branch);
@@ -1120,14 +1165,18 @@ function RepoDetail() {
                         fill={node.color}
                         stroke="#1e1e1e"
                         strokeWidth="1.5"
-                      />
+                        aria-label={node.tooltip.replaceAll("\n", ". ")}
+                      >
+                        <title>{node.tooltip}</title>
+                      </circle>
                     ))}
                   </svg>
                   <div className="gitgraph-rows">
-                    {graphNodes.map(({ commit, branch, color, index }) => (
+                    {graphNodes.map(({ commit, branch, color, index, tooltip }) => (
                       <div
                         key={commit.hash || index}
                         className="gitgraph-row"
+                        title={tooltip}
                         onClick={() => {
                           setRevertMessage("");
                           setRevertError(false);
