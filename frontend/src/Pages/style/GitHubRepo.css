@@ -328,6 +328,176 @@
   gap: 16px;
 }
 
+.gitgraph-panel {
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto 40px;
+  background: #1e1e1e;
+  border-color: #3b3b3b;
+  border-radius: 4px;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.gitgraph-title {
+  padding: 18px 20px 12px;
+}
+
+.gitgraph-title .gh-card-title {
+  margin: 0;
+}
+
+.gitgraph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 6px 16px;
+  border-top: 1px solid #383838;
+  border-bottom: 1px solid #383838;
+  color: #c8c8c8;
+  font-size: 12px;
+}
+
+.gitgraph-toolbar select {
+  min-width: 108px;
+  padding: 4px 8px;
+  border: 1px solid #494949;
+  border-radius: 3px;
+  background: #252526;
+  color: #d4d4d4;
+  font: inherit;
+}
+
+.gitgraph-column-header {
+  display: grid;
+  align-items: center;
+  min-height: 32px;
+  border-bottom: 1px solid #414141;
+  color: #bcbcbc;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gitgraph-column-header span:first-child {
+  padding-left: 14px;
+}
+
+.gitgraph-scroll {
+  overflow-x: auto;
+}
+
+.gitgraph-body {
+  position: relative;
+  display: grid;
+}
+
+.gitgraph-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.gitgraph-rows {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.gitgraph-row {
+  position: relative;
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 14px;
+  border-bottom: 1px solid #303030;
+  color: #d4d4d4;
+  cursor: pointer;
+}
+
+.gitgraph-row:hover {
+  background: #282828;
+}
+
+.gitgraph-commit-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.gitgraph-hash {
+  flex: 0 0 auto;
+  color: #9cdcfe;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+.gitgraph-message {
+  min-width: 0;
+  overflow: hidden;
+  color: #dedede;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gitgraph-commit-meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  color: #929292;
+  font-size: 11px;
+}
+
+.gitgraph-branch {
+  color: var(--branch-color);
+}
+
+.gitgraph-inspect {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid #4b4b4b;
+  border-radius: 3px;
+  background: #252526;
+  color: #cfcfcf;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.gitgraph-inspect:hover {
+  background: #333333;
+}
+
+.gitgraph-empty {
+  margin: 0;
+  padding: 16px;
+  color: #929292;
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .gitgraph-panel {
+    border-radius: 0;
+  }
+
+  .gitgraph-row {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+
+  .gitgraph-commit-main {
+    flex-basis: 100%;
+  }
+
+  .gitgraph-commit-meta {
+    flex-wrap: wrap;
+  }
+}
+
 /* ---------- Cards ---------- */
 .gh-card {
   background: var(--repo-panel);

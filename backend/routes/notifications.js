@@ -80,7 +80,7 @@ async function respondToInvitation(req, res, decision) {
     const claimed = await Notification.findOneAndUpdate(
       { _id: notification._id, receiver_id: req.authUser._id, type: "MEMBER_INVITATION", status: "PENDING" },
       { $set: { status: decision, responded_at: respondedAt } },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!claimed) {
       const current = await Notification.findById(req.params.id).catch(() => null);
@@ -90,20 +90,21 @@ async function respondToInvitation(req, res, decision) {
       });
     }
 
+    const username = req.authUser.username || "";
+    const email = req.authUser.gmail || "";
+    const lower = (value) => String(value || "").trim().toLowerCase();
+    const sameUser = (value) => {
+      const clean = lower(value);
+      if (!clean) return false;
+      return clean === lower(username) || (Boolean(email) && clean === lower(email));
+    };
+
+    // Invitations created before this feature left pending / declined rows in members.
+    // Reuse that row on accept, and drop it on reject, instead of adding the person twice.
+    const memberIndex = (group.members || []).findIndex((m) => sameUser(m.username) || sameUser(m.email));
+    const member = memberIndex === -1 ? null : group.members[memberIndex];
+
     if (decision === "ACCEPTED") {
-      const username = req.authUser.username || "";
-      const email = req.authUser.gmail || "";
-      const lower = (value) => String(value || "").trim().toLowerCase();
-      const sameUser = (value) => {
-        const clean = lower(value);
-        if (!clean) return false;
-        return clean === lower(username) || (Boolean(email) && clean === lower(email));
-      };
-
-      // Invitations created before this feature left pending / declined rows in members.
-      // Reuse that row instead of adding the same person twice.
-      const member = (group.members || []).find((m) => sameUser(m.username) || sameUser(m.email));
-
       if (member && member.status !== "accepted") {
         member.status = "accepted";
         if (email) member.email = email;
@@ -120,7 +121,11 @@ async function respondToInvitation(req, res, decision) {
           joinedAt: respondedAt
         });
       }
+    } else if (member && member.status !== "accepted") {
+      group.members.splice(memberIndex, 1);
+    }
 
+    if (group.isModified("members")) {
       try {
         await group.save();
       } catch (saveError) {

@@ -267,10 +267,13 @@ router.post("/:id/members", async (req, res) => {
       return res.status(409).json({ message: "The team owner is already a member of this team." });
     }
 
+    // Only a real member blocks a new invitation. Rows left pending or declined by the old
+    // email flow are reusable: accepting the new invitation upgrades them in place.
     const alreadyMember = (group.members || []).some(
       (m) =>
-        String(m.username || "").toLowerCase() === String(invitee.username).toLowerCase() ||
-        (Boolean(m.email) && String(m.email).toLowerCase() === String(invitee.gmail || "").toLowerCase())
+        m.status === "accepted" &&
+        (String(m.username || "").toLowerCase() === String(invitee.username).toLowerCase() ||
+          (Boolean(m.email) && String(m.email).toLowerCase() === String(invitee.gmail || "").toLowerCase()))
     );
 
     if (alreadyMember) {

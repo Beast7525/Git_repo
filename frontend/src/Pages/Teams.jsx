@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/Teams.css";
 import { useLoading } from "../context/LoadingContext";
@@ -22,7 +22,6 @@ function readStoredUser() {
 
 export default function Teams() {
   const { startLoading, stopLoading } = useLoading();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { groupId: focusedGroupId } = useParams();
   const [groups, setGroups] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -35,20 +34,13 @@ export default function Teams() {
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
-  // Query params produced by the verification email links
-  const verificationResult = searchParams.get("invite"); // "accepted" | "rejected"
-  const verificationTeamName = searchParams.get("group") || "";
-  const invitedMemberName = searchParams.get("member") || "";
-
   // Retrieve logged-in user
   const currentUser = readStoredUser();
   const loggedInUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
   // The account email never changes when the profile display name is edited, so it is the
   // reliable key for deciding who the signed-in account is.
   const loggedInEmail = currentUser.gmail || currentUser.email || "";
-  // A member arriving from the ACCEPT link may not be signed in yet, so fall back to
-  // the username carried in the link in order to render their team page.
-  const lookupUsername = loggedInUsername || invitedMemberName;
+  const lookupUsername = loggedInUsername;
   const lookupEmail = loggedInEmail;
 
   // Sent with every membership change so the API can verify the team owner
@@ -109,12 +101,6 @@ export default function Teams() {
     const node = teamCardRefs.current[focusedGroupId];
     if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusedGroupId, groups]);
-
-  function dismissVerificationResult() {
-    const next = new URLSearchParams(searchParams);
-    ["invite", "group", "member"].forEach((key) => next.delete(key));
-    setSearchParams(next, { replace: true });
-  }
 
   // Create Group Submit
   async function handleCreateGroup(e) {
@@ -272,26 +258,6 @@ export default function Teams() {
           </div>
         )}
 
-        {verificationResult && (
-          <div className={`invite-banner ${verificationResult === "accepted" ? "agreed" : "disagreed"}`}>
-            <div className="invite-banner-text">
-              <strong>
-                {verificationResult === "accepted"
-                  ? "✓ Verification accepted — welcome to the team"
-                  : "✕ Verification rejected — you did not join the team"}
-              </strong>
-              <span>
-                {verificationResult === "accepted"
-                  ? `You are now a verified member of ${verificationTeamName ? `the team "${verificationTeamName}"` : "this team"}.`
-                  : `${verificationTeamName ? `The team "${verificationTeamName}"` : "This team"} will not be added to your account.`}
-              </span>
-            </div>
-            <button type="button" className="invite-banner-close" onClick={dismissVerificationResult} aria-label="Dismiss">
-              &times;
-            </button>
-          </div>
-        )}
-
         <div className="teams-container">
           {groups.length > 0 ? (
             groups.map((group) => {
@@ -318,6 +284,8 @@ export default function Teams() {
                   <div className="member-list">
                     {(group.members || []).map((m, idx) => {
                       const isMemberCreator = m.role === 'creator' || (m.username && m.username.toLowerCase() === (group.creator || "").toLowerCase());
+                      // Invitations are no longer added here, so a "pending" row is only ever a
+                      // leftover from the old email flow and can just be removed.
                       const isPending = m.status === "pending";
                       const isDeclined = m.status === "declined";
                       return (
@@ -325,10 +293,10 @@ export default function Teams() {
                           <div className="member-info">
                             <span className="member-name">{m.username || m.email}</span>
                             {m.email && <span className="member-email">{m.email}</span>}
-                            {isPending && <span className="member-status pending">Verification sent</span>}
-                            {isDeclined && <span className="member-status declined">Rejected</span>}
+                            {isPending && <span className="member-status pending">Invited</span>}
+                            {isDeclined && <span className="member-status declined">Declined</span>}
                             {!isPending && !isDeclined && !isMemberCreator && (
-                              <span className="member-status accepted">Verified</span>
+                              <span className="member-status accepted">Member</span>
                             )}
                           </div>
                           <div className="member-actions">
@@ -349,9 +317,9 @@ export default function Teams() {
                                   cursor: "pointer"
                                 }}
                                 onClick={() => handleRemoveMember(group._id, m._id, m.username || m.email)}
-                                title={isPending ? "Cancel the pending verification email" : "Remove member"}
+                                title="Remove member"
                               >
-                                {isPending ? "Cancel Verification" : isDeclined ? "Clear" : "Remove"}
+                                Remove
                               </button>
                             )}
                           </div>
@@ -457,7 +425,7 @@ export default function Teams() {
         <div className="teams-modal-backdrop" onClick={() => setSelectedGroupForMember(null)}>
           <div className="teams-modal" onClick={(e) => e.stopPropagation()}>
             <div className="teams-modal-header">
-              <h3>Add Member to {selectedGroupForMember.name}</h3>
+              <h3>Invite Member to {selectedGroupForMember.name}</h3>
               <button className="teams-modal-close" onClick={() => setSelectedGroupForMember(null)}>&times;</button>
             </div>
             <form onSubmit={handleAddMember}>
@@ -472,8 +440,8 @@ export default function Teams() {
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, identifier: e.target.value })}
                 />
                 <small style={{ color: "#748779", fontSize: "0.78rem", marginTop: "4px", display: "block" }}>
-                  Provide either the member's registered username or their email address. A verification email is sent
-                  from gitrepo02@gmail.com with ACCEPT and REJECT buttons.
+                  The invitation appears in that account&apos;s notifications. They join the team only after
+                  accepting it, and are not added to the member list until then.
                 </small>
               </div>
               <div className="teams-form-group">
@@ -487,21 +455,9 @@ export default function Teams() {
                   <option value="creator">Creator / Owner (Full Admin Rights)</option>
                 </select>
               </div>
-              <div className="teams-form-group">
-                <label htmlFor="member-email">Email the verification goes to</label>
-                <input
-                  id="member-email"
-                  type="email"
-                  readOnly
-                  placeholder="Resolved from the username above"
-                  value={
-                    (newMemberForm.identifier || "").includes("@") ? newMemberForm.identifier : "Registered email of that user"
-                  }
-                />
-              </div>
               <div className="teams-modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setSelectedGroupForMember(null)}>Cancel</button>
-                <button type="submit" className="btn-create-team">Send Verification Email</button>
+                <button type="submit" className="btn-create-team">Send Invitation</button>
               </div>
             </form>
           </div>

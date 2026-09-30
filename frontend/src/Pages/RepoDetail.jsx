@@ -15,6 +15,8 @@ const API_BASE_URL = (
     : "http://localhost:5000")
 ).replace(/\/+$/, "");
 
+const GRAPH_BRANCH_COLORS = ["#0098ff", "#21ba45", "#d29922", "#bc8cff", "#f778ba", "#f85149", "#39c5cf"];
+
 async function extractFilesFromDataTransfer(dataTransfer) {
   const files = [];
 
@@ -128,6 +130,7 @@ function RepoDetail() {
 
   // Interactive UI States
   const [activeTab, setActiveTab] = useState("code");
+  const [graphBranchFilter, setGraphBranchFilter] = useState("all");
   const [isStarred, setIsStarred] = useState(false);
   const [starCount, setStarCount] = useState(0);
   const [showCodeDropdown, setShowCodeDropdown] = useState(false);
@@ -876,6 +879,29 @@ function RepoDetail() {
 
     return history;
   })();
+  const graphBranches = [...new Set([
+    repo.defaultBranch || "main",
+    ...rawHistory.map((commit) => commit.branch || repo.defaultBranch || "main"),
+  ])];
+  const visibleGraphHistory = graphBranchFilter === "all"
+    ? rawHistory
+    : rawHistory.filter((commit) => (commit.branch || repo.defaultBranch || "main") === graphBranchFilter);
+  const graphRowHeight = 48;
+  const graphLaneWidth = Math.max(76, graphBranches.length * 34 + 16);
+  const graphHeight = Math.max(graphRowHeight, visibleGraphHistory.length * graphRowHeight);
+  const graphNodes = visibleGraphHistory.map((commit, index) => {
+    const branch = commit.branch || repo.defaultBranch || "main";
+    const laneIndex = Math.max(0, graphBranches.indexOf(branch));
+    return {
+      commit,
+      index,
+      branch,
+      laneIndex,
+      x: laneIndex * 34 + 20,
+      y: index * graphRowHeight + graphRowHeight / 2,
+      color: GRAPH_BRANCH_COLORS[laneIndex % GRAPH_BRANCH_COLORS.length],
+    };
+  });
 
   return (
     <main className="app gh-repo-page">
@@ -1030,72 +1056,111 @@ function RepoDetail() {
           </div>
 
           {activeTab === "commits" ? (
-            /* VS Code Style Git Commit Graph View */
-            <section className="gh-card" style={{ padding: "28px", maxWidth: "900px", margin: "0 auto 40px" }}>
-              <div style={{ marginBottom: "20px", borderBottom: "1px solid var(--repo-line)", paddingBottom: "12px" }}>
-                <h2 className="gh-card-title" style={{ fontSize: "1.4rem" }}>Git Commit Graph &amp; History</h2>
-                
+            <section className="gh-card gitgraph-panel">
+              <div className="gitgraph-title">
+                <h2 className="gh-card-title">Git Commit Graph</h2>
               </div>
-
-              <div className="vscode-git-graph" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {rawHistory.map((c, index) => (
-                  <div
-                    key={c.hash || index}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "16px",
-                      background: "rgba(15, 29, 20, 0.7)",
-                      border: "1px solid rgba(167, 221, 166, 0.2)",
-                      borderRadius: "10px",
-                      padding: "14px 18px",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease"
-                    }}
-                    onClick={() => {
-                      setRevertMessage("");
-                      setRevertError(false);
-                      setSelectedCommit(c);
-                    }}
+              <div className="gitgraph-toolbar">
+                <label htmlFor="gitgraph-branch-filter">Branches:</label>
+                <select
+                  id="gitgraph-branch-filter"
+                  value={graphBranchFilter}
+                  onChange={(event) => setGraphBranchFilter(event.target.value)}
+                >
+                  <option value="all">Show All</option>
+                  {graphBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                </select>
+              </div>
+              <div
+                className="gitgraph-column-header"
+                style={{ gridTemplateColumns: `${graphLaneWidth}px minmax(0, 1fr)` }}
+              >
+                <span>Graph</span>
+                <span>Commit</span>
+              </div>
+              <div className="gitgraph-scroll">
+                <div
+                  className="gitgraph-body"
+                  style={{
+                    gridTemplateColumns: `${graphLaneWidth}px minmax(0, 1fr)`,
+                    minHeight: `${graphHeight}px`,
+                  }}
+                >
+                  <svg
+                    className="gitgraph-svg"
+                    width={graphLaneWidth}
+                    height={graphHeight}
+                    viewBox={`0 0 ${graphLaneWidth} ${graphHeight}`}
+                    aria-hidden="true"
                   >
-                    {/* SVG Node & Line indicator */}
-                    <div style={{ position: "relative", width: "24px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {index < rawHistory.length - 1 && (
-                        <div style={{ position: "absolute", top: "20px", bottom: "-20px", width: "2px", background: "#a7dda6", left: "11px" }} />
-                      )}
-                      <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#a7dda6", boxShadow: "0 0 8px #a7dda6", zIndex: 2 }} />
-                    </div>
-
-                    <div style={{ flexGrow: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-                        <span style={{ fontFamily: "monospace", fontWeight: "700", color: "#a7dda6", background: "rgba(167, 221, 166, 0.15)", padding: "2px 6px", borderRadius: "4px", fontSize: "0.82rem" }}>
-                          {c.hash ? c.hash.slice(0, 7) : "commit"}
-                        </span>
-                        <span style={{ fontWeight: 600, color: "#ffffff", fontSize: "0.95rem" }}>
-                          {c.message || "Commit update"}
-                        </span>
+                    {graphBranches.flatMap((branch, laneIndex) => {
+                      const branchNodes = graphNodes.filter((node) => node.branch === branch);
+                      const color = GRAPH_BRANCH_COLORS[laneIndex % GRAPH_BRANCH_COLORS.length];
+                      return branchNodes.slice(0, -1).map((node, index) => {
+                        const nextNode = branchNodes[index + 1];
+                        return (
+                          <line
+                            key={`${branch}-${node.index}`}
+                            x1={node.x}
+                            y1={node.y}
+                            x2={nextNode.x}
+                            y2={nextNode.y}
+                            stroke={color}
+                            strokeWidth="2"
+                          />
+                        );
+                      });
+                    })}
+                    {graphNodes.map((node) => (
+                      <circle
+                        key={`${node.commit.hash || node.index}-node`}
+                        cx={node.x}
+                        cy={node.y}
+                        r="4.5"
+                        fill={node.color}
+                        stroke="#1e1e1e"
+                        strokeWidth="1.5"
+                      />
+                    ))}
+                  </svg>
+                  <div className="gitgraph-rows">
+                    {graphNodes.map(({ commit, branch, color, index }) => (
+                      <div
+                        key={commit.hash || index}
+                        className="gitgraph-row"
+                        onClick={() => {
+                          setRevertMessage("");
+                          setRevertError(false);
+                          setSelectedCommit(commit);
+                        }}
+                      >
+                        <div className="gitgraph-commit-main">
+                          <span className="gitgraph-hash">{commit.hash ? commit.hash.slice(0, 7) : "commit"}</span>
+                          <span className="gitgraph-message">{commit.message || "Commit update"}</span>
+                        </div>
+                        <div className="gitgraph-commit-meta">
+                          <span>{commit.author || ownerName}</span>
+                          <span>{commit.committedAt ? new Date(commit.committedAt).toLocaleString() : "Recently"}</span>
+                          <span className="gitgraph-branch" style={{ "--branch-color": color }}>{branch}</span>
+                        </div>
+                        <button
+                          className="gitgraph-inspect"
+                          type="button"
+                          title="Inspect or revert this commit"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setRevertMessage("");
+                            setRevertError(false);
+                            setSelectedCommit(commit);
+                          }}
+                        >
+                          Inspect / Revert
+                        </button>
                       </div>
-                      <div style={{ fontSize: "0.82rem", color: "#9eafa3", display: "flex", gap: "14px" }}>
-                        <span>Author: <strong>{c.author || ownerName}</strong></span>
-                        <span>Branch: <strong>{c.branch || repo.defaultBranch || "main"}</strong></span>
-                        <span>Date: <strong>{c.committedAt ? new Date(c.committedAt).toLocaleString() : "Recently"}</strong></span>
-                      </div>
-                    </div>
-
-                    <button
-                      className="gh-btn"
-                      style={{ fontSize: "0.8rem", padding: "6px 12px" }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRevertMessage("");
-                        setRevertError(false);
-                        setSelectedCommit(c);
-                      }}
-                    >
-                      Inspect / Revert
-                    </button>
+                    ))}
+                    {graphNodes.length === 0 && <p className="gitgraph-empty">No commits on this branch.</p>}
                   </div>
-                ))}
+                </div>
               </div>
             </section>
           ) : activeTab === "settings" ? (
