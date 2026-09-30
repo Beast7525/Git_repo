@@ -1,10 +1,11 @@
 import "./style/Repository.css";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../auth/apiFetch";
 
 function Repository() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [form, setForm] = useState({
         name: "",
         description: "",
@@ -90,6 +91,11 @@ function Repository() {
                 navigate("/User");
             } else {
                 const errorData = await res.json().catch(() => ({}));
+                if (res.status === 401) {
+                    ["authToken", "user", "username", "userId"].forEach((key) => localStorage.removeItem(key));
+                    navigate("/login", { replace: true, state: { from: location.pathname } });
+                    return;
+                }
                 setIsError(true);
                 setMessage(`Failed to store repository in database: ${errorData.message || res.statusText}`);
             }

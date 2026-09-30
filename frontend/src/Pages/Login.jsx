@@ -70,6 +70,11 @@ function Login() {
         return;
       }
 
+      if (typeof data.token !== "string" || !data.token) {
+        setError("The server did not provide a login token. Please try again later.");
+        return;
+      }
+
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("username", data.user.username);
