@@ -13,11 +13,14 @@ function Login() {
   // Form inputs
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const [regUsername, setRegUsername] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -160,14 +163,25 @@ function Login() {
                 required
               />
 
-              <input
-                type="password"
-                placeholder="Password"
-                className="input-box"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                required
-              />
+              <div className="password-field">
+                <input
+                  type={showLoginPassword ? "text" : "password"}
+                  placeholder="Password"
+                  className="input-box"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showLoginPassword}
+                  onClick={() => setShowLoginPassword((shown) => !shown)}
+                >
+                  {showLoginPassword ? "Hide" : "Show"}
+                </button>
+              </div>
 
               <div className="forgot-container">
                 <a href="/ForgotPassword" className="forgot-link">
@@ -215,23 +229,45 @@ function Login() {
                 required
               />
 
-              <input
-                type="password"
-                placeholder="Password"
-                className="input-box"
-                value={regPassword}
-                onChange={(e) => setRegPassword(e.target.value)}
-                required
-              />
+              <div className="password-field">
+                <input
+                  type={showRegPassword ? "text" : "password"}
+                  placeholder="Password"
+                  className="input-box"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label={showRegPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showRegPassword}
+                  onClick={() => setShowRegPassword((shown) => !shown)}
+                >
+                  {showRegPassword ? "Hide" : "Show"}
+                </button>
+              </div>
 
-              <input
-                type="password"
-                placeholder="Confirm Password"
-                className="input-box"
-                value={regConfirmPassword}
-                onChange={(e) => setRegConfirmPassword(e.target.value)}
-                required
-              />
+              <div className="password-field">
+                <input
+                  type={showRegConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm Password"
+                  className="input-box"
+                  value={regConfirmPassword}
+                  onChange={(e) => setRegConfirmPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label={showRegConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  aria-pressed={showRegConfirmPassword}
+                  onClick={() => setShowRegConfirmPassword((shown) => !shown)}
+                >
+                  {showRegConfirmPassword ? "Hide" : "Show"}
+                </button>
+              </div>
 
               {error && !isLogin && <p className="error-text">{error}</p>}
               {success && !isLogin && <p className="success-text">{success}</p>}

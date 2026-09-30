@@ -169,12 +169,18 @@ export default function Stars() {
                       </Link>
                       <span
                         className={`starred-badge ${
-                          repo.visibility === "Public" || repo.visibility === "public"
+                          String(repo.visibility || "public").toLowerCase() === "public"
                             ? "public"
-                            : "private"
+                            : ["team member", "team"].includes(String(repo.visibility || "").toLowerCase())
+                              ? "team"
+                              : "private"
                         }`}
                       >
-                        {repo.visibility || "Public"}
+                        {String(repo.visibility || "public").toLowerCase() === "public"
+                          ? "Public"
+                          : ["team member", "team"].includes(String(repo.visibility || "").toLowerCase())
+                            ? (repo.groupName || "Team")
+                            : "Private"}
                       </span>
                     </div>
 

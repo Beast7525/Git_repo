@@ -994,7 +994,7 @@ function RepoDetail() {
                     }`}
                     title={isTeamOnly && repo.groupName ? `Shared with ${repo.groupName}` : undefined}
                   >
-                    {isPublic ? "Public" : isTeamOnly ? "Team" : "Private"}
+                    {isPublic ? "Public" : isTeamOnly ? (repo.groupName || "Team") : "Private"}
                   </span>
                 </div>
                 <p className="gh-hero-desc">

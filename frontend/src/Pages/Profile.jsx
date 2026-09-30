@@ -161,6 +161,8 @@ function Profile() {
             <div className="repo-grid-list">
               {repos.map((repo) => {
                 const displayName = repo.name || repo.repositoryName || "untitled-repository";
+                const visibility = String(repo.visibility || "public").trim().toLowerCase();
+                const isTeamOnly = visibility === "team member" || visibility === "team";
                 return (
                   <div key={repo._id || repo.id} className="repo-item-card">
                     <div className="repo-card-top">
@@ -172,8 +174,8 @@ function Profile() {
                           {displayName}
                         </Link>
                       </h3>
-                      <span className={`repo-badge ${repo.visibility === "public" || repo.visibility === "Public" ? "public" : "private"}`}>
-                        {repo.visibility === "public" || repo.visibility === "Public" ? "Public" : "Private"}
+                      <span className={`repo-badge ${visibility === "public" ? "public" : isTeamOnly ? "team" : "private"}`}>
+                        {visibility === "public" ? "Public" : isTeamOnly ? (repo.groupName || "Team") : "Private"}
                       </span>
                     </div>
 

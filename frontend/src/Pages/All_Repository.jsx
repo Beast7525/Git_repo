@@ -103,7 +103,7 @@ function All_Repository() {
                       }`}
                       title={isTeamOnly && repo.groupName ? `Shared with ${repo.groupName}` : undefined}
                     >
-                      {isPublic ? "Public" : isTeamOnly ? "Team" : "Private"}
+                      {isPublic ? "Public" : isTeamOnly ? (repo.groupName || "Team") : "Private"}
                     </span>
                   </div>
                   <p className="repo-card-desc">{repo.description || "No description provided for this repository."}</p>
