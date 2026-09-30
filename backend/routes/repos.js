@@ -78,6 +78,40 @@ async function requireRepoOwnerById(req, res, next) {
   next();
 }
 
+function hasStarredByUser(repo, user) {
+  if (!repo || !user) return false;
+  const userId = String(user._id);
+  return (repo.starredBy || []).some((entry) => String(entry.userId) === userId);
+}
+
+// The write guards keep repeated clicks idempotent, and the counter is recomputed from the
+// star list so "stars" can never drift away from who actually starred the repository.
+async function setRepoStarred(repo, user, starred) {
+  const userId = user._id;
+
+  if (starred) {
+    await Repo.updateOne(
+      { _id: repo._id, "starredBy.userId": { $ne: userId } },
+      { $push: { starredBy: { userId, starredAt: new Date() } } }
+    );
+  } else {
+    await Repo.updateOne(
+      { _id: repo._id, "starredBy.userId": userId },
+      { $pull: { starredBy: { userId } } }
+    );
+  }
+
+  await Repo.updateOne(
+    { _id: repo._id },
+    [{ $set: { stars: { $size: { $ifNull: ["$starredBy", []] } } } }],
+    { updatePipeline: true }
+  );
+
+  const updated = await Repo.findById(repo._id).select("starredBy").lean();
+  const count = Array.isArray(updated?.starredBy) ? updated.starredBy.length : 0;
+  return { stars: count, starred };
+}
+
 async function fetchFileText(repo, fileObj) {
   if (!fileObj) return null;
   if (typeof fileObj.content === "string" && fileObj.content.length > 0) return fileObj.content;
@@ -220,6 +254,26 @@ router.get("/", async (req, res) => {
     res.status(200).json(repos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching repositories: " + error.message });
+  }
+});
+
+// GET /api/repos/starred - repositories the signed-in user has starred
+router.get("/starred", requireAuth, async (req, res) => {
+  try {
+    const repos = await Repo.find({ "starredBy.userId": req.authUser._id })
+      .select("-files -commitHistory -storagePath -reports")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    res.status(200).json(
+      repos.map((repo) => ({
+        ...repo,
+        stars: Array.isArray(repo.starredBy) ? repo.starredBy.length : 0,
+        starred: true,
+      }))
+    );
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching starred repositories: " + error.message });
   }
 });
 
@@ -641,10 +695,32 @@ router.get("/find/:owner/:repoName", async (req, res) => {
       );
     }
 
-    res.status(200).json(repo);
+    const payload = typeof repo.toObject === "function" ? repo.toObject() : { ...repo };
+    payload.starred = hasStarredByUser(repo, req.authUser);
+    res.status(200).json(payload);
   } catch (error) {
     console.error("Error finding repository:", error);
     res.status(500).json({ message: "Error fetching repository: " + error.message });
+  }
+});
+
+// POST /api/repos/find/:owner/:repoName/star - add the signed-in user to the star list
+router.post("/find/:owner/:repoName/star", requireAuth, requireRepoAccess, async (req, res) => {
+  try {
+    res.status(200).json(await setRepoStarred(req.repo, req.authUser, true));
+  } catch (error) {
+    console.error("Error starring repository:", error);
+    res.status(500).json({ message: "Error starring repository: " + error.message });
+  }
+});
+
+// DELETE /api/repos/find/:owner/:repoName/star - remove the signed-in user from the star list
+router.delete("/find/:owner/:repoName/star", requireAuth, requireRepoAccess, async (req, res) => {
+  try {
+    res.status(200).json(await setRepoStarred(req.repo, req.authUser, false));
+  } catch (error) {
+    console.error("Error unstarring repository:", error);
+    res.status(500).json({ message: "Error unstarring repository: " + error.message });
   }
 });
 
@@ -929,6 +1005,38 @@ router.put("/find/:owner/:repoName/settings", requireAuth, requireRepoOwner, asy
       return res.status(404).json({ message: "Repository not found." });
     }
 
+    const visibilityByName = new Map([
+      ["public", "public"],
+      ["private", "private"],
+      ["team member", "Team Member"],
+    ]);
+    const nextVisibility = visibilityByName.get(String(visibility ?? repo.visibility ?? "public").trim().toLowerCase());
+    if (!nextVisibility) {
+      return res.status(400).json({ message: "Choose Public, Private, or Team Member visibility." });
+    }
+
+    let nextGroup = null;
+    if (nextVisibility === "Team Member") {
+      const requestedGroupId = String(groupId ?? repo.group?._id ?? repo.groupId ?? "").trim();
+      if (!requestedGroupId) {
+        return res.status(400).json({ message: "Select a group for Team Member visibility." });
+      }
+
+      nextGroup = await Group.findById(requestedGroupId).catch(() => null);
+      if (!nextGroup) {
+        return res.status(400).json({ message: "The selected group could not be found. Choose another group." });
+      }
+
+      const usernameMatches = (value) => String(value || "").trim().toLowerCase() === req.authUser.username.toLowerCase();
+      const emailMatches = (value) => String(value || "").trim().toLowerCase() === req.authUser.gmail.toLowerCase();
+      const canUseGroup = usernameMatches(nextGroup.creator) || emailMatches(nextGroup.creatorEmail) ||
+        nextGroup.members.some((member) => member.status === "accepted" &&
+          (usernameMatches(member.username) || emailMatches(member.email)));
+      if (!canUseGroup) {
+        return res.status(403).json({ message: "You must be a verified member of the selected group." });
+      }
+    }
+
     // Rename check
     if (newName && newName.trim().toLowerCase() !== repo.name.toLowerCase()) {
       const trimmedNewName = newName.trim();
@@ -952,35 +1060,23 @@ router.put("/find/:owner/:repoName/settings", requireAuth, requireRepoOwner, asy
       repo.description = description.trim();
     }
 
-    if (visibility) {
-      repo.visibility = visibility;
+    repo.visibility = nextVisibility;
+
+    const previousGroupId = repo.group?._id?.toString() || repo.group?.toString() || repo.groupId;
+    const nextGroupId = nextGroup?._id.toString() || "";
+    if (previousGroupId && previousGroupId !== nextGroupId) {
+      await Group.findByIdAndUpdate(previousGroupId, { $pull: { repositories: repo._id } });
     }
 
-    // Handle group association update
-    if (groupId !== undefined) {
-      // Remove repo from previous group if changed
-      if (repo.group && repo.group.toString() !== groupId) {
-        await Group.findByIdAndUpdate(repo.group, {
-          $pull: { repositories: repo._id }
-        });
-      }
-
-      if (groupId) {
-        const groupDoc = await Group.findById(groupId).catch(() => null);
-        if (groupDoc) {
-          repo.group = groupDoc._id;
-          repo.groupId = groupDoc._id.toString();
-          repo.groupName = groupDoc.name;
-
-          await Group.findByIdAndUpdate(groupDoc._id, {
-            $addToSet: { repositories: repo._id }
-          });
-        }
-      } else {
-        repo.group = null;
-        repo.groupId = "";
-        repo.groupName = "";
-      }
+    if (nextGroup) {
+      repo.group = nextGroup._id;
+      repo.groupId = nextGroupId;
+      repo.groupName = nextGroup.name;
+      await Group.findByIdAndUpdate(nextGroup._id, { $addToSet: { repositories: repo._id } });
+    } else {
+      repo.group = null;
+      repo.groupId = "";
+      repo.groupName = "";
     }
 
     await repo.save();

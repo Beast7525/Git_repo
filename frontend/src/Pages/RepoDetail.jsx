@@ -213,6 +213,7 @@ function RepoDetail() {
           const data = await res.json();
           setRepo(data);
           setStarCount(data.stars || 0);
+          setIsStarred(Boolean(data.starred));
           setSettingsForm({
             name: data.name || data.repositoryName || "",
             visibility: data.visibility || "public",
@@ -288,6 +289,12 @@ function RepoDetail() {
 
   async function handleSaveSettings(e) {
     e.preventDefault();
+    if (settingsForm.visibility === "Team Member" && !settingsForm.groupId) {
+      setSettingsError(true);
+      setSettingsMsg("Select a group before saving Team Member visibility.");
+      return;
+    }
+
     setSavingSettings(true);
     setSettingsMsg("");
     setSettingsError(false);
@@ -310,6 +317,12 @@ function RepoDetail() {
       }
 
       setRepo(data.repo);
+      setSettingsForm({
+        name: data.repo.name || data.repo.repositoryName || "",
+        visibility: data.repo.visibility || "public",
+        groupId: data.repo.groupId || (data.repo.group?._id || data.repo.group || ""),
+        description: data.repo.description || "",
+      });
       setSettingsMsg("Repository settings saved successfully!");
 
       const newRepoName = data.repo.name || settingsForm.name;
@@ -784,13 +797,29 @@ function RepoDetail() {
     }
   }
 
-  function toggleStar() {
-    if (isStarred) {
-      setIsStarred(false);
-      setStarCount((prev) => Math.max(0, prev - 1));
-    } else {
-      setIsStarred(true);
-      setStarCount((prev) => prev + 1);
+  // Optimistic toggle: the button reacts immediately, then the server confirms the new
+  // count so the Stars page and this counter can never disagree.
+  async function toggleStar() {
+    const nextStarred = !isStarred;
+    setIsStarred(nextStarred);
+    setStarCount((prev) => Math.max(0, prev + (nextStarred ? 1 : -1)));
+
+    try {
+      const res = await apiFetch(
+        `${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/star`,
+        { method: nextStarred ? "POST" : "DELETE" }
+      );
+      const data = res.ok ? await res.json().catch(() => null) : null;
+      if (!res.ok) {
+        throw new Error((data && data.message) || `Request failed with status ${res.status}`);
+      }
+      if (typeof data?.stars === "number") setStarCount(data.stars);
+      if (typeof data?.starred === "boolean") setIsStarred(data.starred);
+    } catch (err) {
+      setIsStarred(!nextStarred);
+      setStarCount((prev) => Math.max(0, prev + (nextStarred ? -1 : 1)));
+      console.error("Failed to update star:", err);
+      alert(err.message || "Could not update the star. Please try again.");
     }
   }
 
@@ -908,8 +937,14 @@ function RepoDetail() {
             </div>
 
             <div className="gh-hero-actions">
-              <button className="gh-btn" type="button" onClick={toggleStar}>
-                Star <span className="gh-btn-count">{starCount}</span>
+              <button
+                className={`gh-btn ${isStarred ? "gh-btn-starred" : ""}`.trim()}
+                type="button"
+                onClick={toggleStar}
+                title={isStarred ? "Remove this repository from your stars" : "Add this repository to your stars"}
+              >
+                {isStarred ? "★ Starred" : "☆ Star"}{" "}
+                <span className="gh-btn-count">{starCount}</span>
               </button>
 
               <button className="gh-btn gh-btn-primary" type="button" onClick={() => setShowUploadModal(true)}>

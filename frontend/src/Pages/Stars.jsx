@@ -1,22 +1,70 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import User_header from "./User_header";
-import { getStarredRepos, toggleStarRepo } from "../utils/starredUtils";
+import { apiFetch } from "../auth/apiFetch";
 import "./style/Stars.css";
+
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+    ? window.location.origin
+    : "http://localhost:5000")
+).replace(/\/+$/, "");
 
 export default function Stars() {
   const navigate = useNavigate();
   const [starredRepos, setStarredRepos] = useState([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    setStarredRepos(getStarredRepos());
+  const loadStarred = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/starred`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error((data && data.message) || `Request failed with status ${res.status}`);
+      }
+      const data = await res.json();
+      setStarredRepos(Array.isArray(data) ? data : []);
+      setError("");
+    } catch (err) {
+      console.error("Failed to load starred repositories:", err);
+      setError(err.message || "Could not load your starred repositories.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  function handleUnstar(repo, e) {
+  useEffect(() => {
+    async function initialLoad() {
+      await loadStarred();
+    }
+    initialLoad();
+  }, [loadStarred]);
+
+  // The card path mirrors the /:username/:repoName route, and the API resolves owners
+  // case-insensitively, so the repository the user stars is the one linked here.
+  async function handleUnstar(repo, e) {
     e.stopPropagation();
-    toggleStarRepo(repo);
-    setStarredRepos(getStarredRepos());
+    const previous = starredRepos;
+    setStarredRepos((list) => list.filter((r) => r._id !== repo._id));
+    try {
+      const owner = repo.owner || repo.ownerEmail || "";
+      const name = repo.name || repo.repositoryName || "";
+      const res = await apiFetch(
+        `${API_BASE_URL}/api/repos/find/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/star`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error((data && data.message) || `Request failed with status ${res.status}`);
+      }
+    } catch (err) {
+      console.error("Failed to unstar repository:", err);
+      setStarredRepos(previous);
+      alert(err.message || "Could not remove this repository from your stars.");
+    }
   }
 
   const filtered = starredRepos.filter((r) => {
@@ -61,7 +109,19 @@ export default function Stars() {
           </div>
         )}
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="stars-empty-state">
+            <h3>Loading your starred repositories...</h3>
+          </div>
+        ) : error ? (
+          <div className="stars-empty-state">
+            <h3>Could not load starred repositories</h3>
+            <p>{error}</p>
+            <button className="stars-browse-btn" onClick={loadStarred}>
+              Try again
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="stars-empty-state">
             <div className="stars-empty-icon">⭐</div>
             <h3>

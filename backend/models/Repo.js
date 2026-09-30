@@ -66,6 +66,12 @@ const repoSchema = new mongoose.Schema(
     },
     stars: { type: Number, default: 0 },
     forks: { type: Number, default: 0 },
+    starredBy: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        starredAt: { type: Date, default: Date.now }
+      }
+    ],
     reports: [
       {
         reportedBy: String,
