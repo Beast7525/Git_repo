@@ -58,6 +58,32 @@ function getCommitTooltip(commit, olderCommit, ownerName, defaultBranch) {
   return details.join("\n");
 }
 
+function getFileCommitMessage(file, history, defaultBranch) {
+  const filePath = file.path || file.b2FileName;
+  const fileBranch = String(file.branch || defaultBranch || "main").toLowerCase();
+  const findSnapshot = (snapshot) => snapshot.find((entry) =>
+    (entry.path || entry.b2FileName) === filePath &&
+    String(entry.branch || defaultBranch || "main").toLowerCase() === fileBranch
+  );
+
+  for (let index = 0; index < history.length; index++) {
+    const currentSnapshot = history[index].snapshotFiles;
+    if (!Array.isArray(currentSnapshot)) continue;
+
+    const currentFile = findSnapshot(currentSnapshot);
+    if (!currentFile) continue;
+
+    const olderSnapshot = history[index + 1]?.snapshotFiles;
+    const olderFile = Array.isArray(olderSnapshot) ? findSnapshot(olderSnapshot) : null;
+    const changed = !olderFile || ["size", "content", "contentType", "b2FileName", "b2Url"]
+      .some((key) => currentFile[key] !== olderFile[key]);
+
+    if (changed) return history[index].message || "File updated";
+  }
+
+  return "Repository file";
+}
+
 async function extractFilesFromDataTransfer(dataTransfer) {
   const files = [];
 
@@ -948,6 +974,19 @@ function RepoDetail() {
       tooltip: getCommitTooltip(commit, rawHistory[historyIndex + 1], ownerName, repo.defaultBranch),
     };
   });
+  const graphMergeEdges = graphNodes.flatMap((node) => {
+    const merge = node.commit.message?.match(/^Merge branch ['"](.+?)['"] into ['"](.+?)['"]$/i);
+    if (!merge) return [];
+
+    const [, sourceBranch, targetBranch] = merge;
+    if (node.branch.toLowerCase() !== targetBranch.toLowerCase()) return [];
+
+    const sourceNode = graphNodes.find((candidate) =>
+      candidate.historyIndex > node.historyIndex &&
+      candidate.branch.toLowerCase() === sourceBranch.toLowerCase()
+    );
+    return sourceNode ? [{ mergeNode: node, sourceNode }] : [];
+  });
 
   return (
     <main className="app gh-repo-page">
@@ -1145,6 +1184,18 @@ function RepoDetail() {
                     role="img"
                     aria-label="Commit graph. Hover over a node for commit details."
                   >
+                    {graphMergeEdges.map(({ mergeNode, sourceNode }) => {
+                      const middleY = (mergeNode.y + sourceNode.y) / 2;
+                      return (
+                        <path
+                          key={`merge-${mergeNode.commit.hash || mergeNode.index}-${sourceNode.commit.hash || sourceNode.index}`}
+                          d={`M ${mergeNode.x} ${mergeNode.y} C ${mergeNode.x} ${middleY}, ${sourceNode.x} ${middleY}, ${sourceNode.x} ${sourceNode.y}`}
+                          fill="none"
+                          stroke={sourceNode.color}
+                          strokeWidth="2"
+                        />
+                      );
+                    })}
                     {graphBranches.flatMap((branch, laneIndex) => {
                       const branchNodes = graphNodes.filter((node) => node.branch === branch);
                       const color = GRAPH_BRANCH_COLORS[laneIndex % GRAPH_BRANCH_COLORS.length];
@@ -1493,7 +1544,7 @@ function RepoDetail() {
                             </button>
                             <span className="gh-b2-badge">{file.b2Url ? "B2 Cloud" : "Local"}</span>
                             <span className="gh-file-desc">
-                              {repo.lastCommit?.message || "Upload file to repository"}
+                              {getFileCommitMessage(file, rawHistory, repo.defaultBranch)}
                             </span>
                             <span className="gh-file-size">
                               {Math.max(1, Math.round((file.size || 0) / 1024))} KB
