@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/User.css";
 import { useLoading } from "../context/LoadingContext";
+import { apiFetch } from "../auth/apiFetch";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -33,11 +34,11 @@ function All_Repository() {
           if (activeUsername) params.append("owner", activeUsername);
         }
 
-        let response = await fetch(`${API_BASE_URL}/api/repos?${params.toString()}`);
+        let response = await apiFetch(`${API_BASE_URL}/api/repos?${params.toString()}`);
         if (response.ok) {
           let data = await response.json();
           if (!Array.isArray(data) || data.length === 0) {
-            const fallbackRes = await fetch(`${API_BASE_URL}/api/repos`);
+            const fallbackRes = await apiFetch(`${API_BASE_URL}/api/repos`);
             if (fallbackRes.ok) data = await fallbackRes.json();
           }
           setRepos(Array.isArray(data) ? data : []);

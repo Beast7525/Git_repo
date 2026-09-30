@@ -3,7 +3,10 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 function hasSignedInUser() {
   try {
     const user = JSON.parse(localStorage.getItem("user") || "null");
-    return Boolean(user && (user.id || user._id) && (user.username || user.gmail || user.email));
+    return Boolean(
+      user && (user.id || user._id) && (user.username || user.gmail || user.email) &&
+      (user.role === "admin" || localStorage.getItem("authToken"))
+    );
   } catch {
     return false;
   }

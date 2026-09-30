@@ -1,7 +1,9 @@
 const express = require("express");
+require("../net-setup").preferIpv4();
 const User = require("../models/User");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const { createAuthToken } = require("../middleware/auth");
 const router = express.Router();
 
 const hashValue = (value) => crypto.createHash("sha256").update(value).digest("hex");
@@ -135,6 +137,7 @@ router.post("/login", async (req, res) => {
 
     res.status(200).json({
       message: "Login successful",
+      token: createAuthToken(user._id),
       user: {
         id: user._id,
         username: user.username,

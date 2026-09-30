@@ -1,6 +1,7 @@
 import "./style/Repository.css";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../auth/apiFetch";
 
 function Repository() {
     const navigate = useNavigate();
@@ -78,7 +79,7 @@ function Repository() {
 
         try {
             // Post directly to backend database collection 'repositories'
-            let res = await fetch(`${API_BASE_URL}/api/repos`, {
+            let res = await apiFetch(`${API_BASE_URL}/api/repos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),

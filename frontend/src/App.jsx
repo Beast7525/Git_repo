@@ -42,10 +42,11 @@ function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/All_Repository" element={<All_Repository />} />
 
-          {/* Dynamic account and repository routes */}
-          <Route path="/:username" element={<Profile />} />
-          <Route path="/:username/:repoName" element={<RepoDetail />} />
         </Route>
+
+        {/* Public profiles and repositories enforce visibility on the API. */}
+        <Route path="/:username" element={<Profile />} />
+        <Route path="/:username/:repoName" element={<RepoDetail />} />
 
         {/* 404 Not Found Fallback */}
         <Route path="*" element={<NotFound />} />

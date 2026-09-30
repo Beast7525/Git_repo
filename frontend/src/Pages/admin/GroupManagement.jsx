@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { fetchGroupsFromDB } from "./adminDataService";
+import { fetchGroupsFromDB, deleteGroupFromDB } from "./adminDataService";
 import "./Admin.css";
 
-export default function GroupManagement({ showToast }) {
+export default function GroupManagement({ showToast = (msg) => console.log(msg) }) {
   const [groups, setGroups] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     async function loadGroups() {
@@ -25,6 +27,26 @@ export default function GroupManagement({ showToast }) {
       (g.creator && g.creator.toLowerCase().includes(q))
     );
   });
+
+  async function handleConfirmDeleteGroup() {
+    if (!confirmDeleteGroup || deleting) return;
+    setDeleting(true);
+    const result = await deleteGroupFromDB(confirmDeleteGroup.id);
+    setDeleting(false);
+
+    if (result.ok) {
+      showToast(
+        result.message ||
+          `Group ${confirmDeleteGroup.name} deleted${
+            result.detachedRepositories ? `, ${result.detachedRepositories} repositories detached` : ""
+          }.`
+      );
+      setConfirmDeleteGroup(null);
+      setGroups((current) => current.filter((g) => g.id !== confirmDeleteGroup.id));
+    } else {
+      showToast(result.message || "Failed to delete group.");
+    }
+  }
 
   return (
     <div>
@@ -60,18 +82,19 @@ export default function GroupManagement({ showToast }) {
                 <th>Members Count</th>
                 <th>Members &amp; Roles</th>
                 <th>Created Date</th>
+                <th style={{ color: "var(--admin-accent-red)" }}>Actions (Admin)</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: "center", padding: "40px", color: "var(--admin-text-muted)" }}>
+                  <td colSpan="7" style={{ textAlign: "center", padding: "40px", color: "var(--admin-text-muted)" }}>
                     Loading system groups...
                   </td>
                 </tr>
               ) : filteredGroups.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: "center", padding: "40px", color: "var(--admin-text-muted)" }}>
+                  <td colSpan="7" style={{ textAlign: "center", padding: "40px", color: "var(--admin-text-muted)" }}>
                     No system groups found.
                   </td>
                 </tr>
@@ -120,6 +143,16 @@ export default function GroupManagement({ showToast }) {
                     <td style={{ color: "var(--admin-text-subtle)", fontSize: "0.82rem" }}>
                       {g.creationDate}
                     </td>
+                    <td>
+                      <button
+                        className="btn-sm-action"
+                        style={{ background: "rgba(239, 68, 68, 0.15)", color: "var(--admin-accent-red)" }}
+                        onClick={() => setConfirmDeleteGroup(g)}
+                        title="Delete this group permanently"
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -127,6 +160,35 @@ export default function GroupManagement({ showToast }) {
           </table>
         </div>
       </div>
+
+      {/* Confirmation Dialog: Delete Group (Admin only) */}
+      {confirmDeleteGroup && (
+        <div className="modal-backdrop">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: "var(--admin-accent-red)" }}>Confirm Delete Group</h3>
+              <button className="modal-close-btn" onClick={() => setConfirmDeleteGroup(null)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ margin: "0 0 10px" }}>
+                Are you sure you want to permanently delete the group{" "}
+                <strong>{confirmDeleteGroup.name}</strong> ({confirmDeleteGroup.groupId || "no group id"}) owned by{" "}
+                <strong>{confirmDeleteGroup.creator}</strong>?
+              </p>
+              <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--admin-text-subtle)" }}>
+                All {confirmDeleteGroup.membersCount} member record(s) and every pending team verification will be
+                removed. Repositories assigned to this team are kept and simply detached.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn-secondary" onClick={() => setConfirmDeleteGroup(null)}>Cancel</button>
+              <button className="btn-danger" onClick={handleConfirmDeleteGroup} disabled={deleting}>
+                {deleting ? "Deleting..." : "Delete Group"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

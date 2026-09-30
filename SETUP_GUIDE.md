@@ -35,11 +35,13 @@ Your `.env` file needs the actual MongoDB password:
 ```
 PORT=5000
 MONGO_URI=mongodb+srv://24uca243_db_user:YOUR_PASSWORD_HERE@gitrepo.5xfwb7f.mongodb.net/?appName=Gitrepo
+AUTH_TOKEN_SECRET=GENERATE_A_RANDOM_SECRET_HERE
 MAIL_USER=gitrepo02@gmail.com
 MAIL_PASSWORD=YOUR_GMAIL_APP_PASSWORD
 ```
 
 Replace `YOUR_PASSWORD_HERE` with your actual MongoDB Atlas password.
+Set `AUTH_TOKEN_SECRET` to a private random value used to sign login tokens. You can generate one with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Keep this value stable across backend restarts and instances.
 Set `MAIL_PASSWORD` to a Google app password for `gitrepo02@gmail.com`; do not use the regular Gmail password. The forgot-password flow checks the email, sends a 6-digit OTP, verifies it for 10 minutes, and then stores the new password hashed in MongoDB.
 
 ### Step 2: Start Backend Server

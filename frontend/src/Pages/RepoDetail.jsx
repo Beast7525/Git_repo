@@ -6,6 +6,7 @@ import defaultProfile from "./assert/profile.png";
 import NotFound from "./NotFound";
 import "./style/GitHubRepo.css";
 import { useLoading } from "../context/LoadingContext";
+import { apiFetch } from "../auth/apiFetch";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -207,7 +208,7 @@ function RepoDetail() {
         startLoading();
         setNotFound(false);
 
-        const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`);
+        const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`);
         if (res.ok) {
           const data = await res.json();
           setRepo(data);
@@ -269,7 +270,7 @@ function RepoDetail() {
     const targetPath = file.path || file.b2FileName;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-content?filePath=${encodeURIComponent(targetPath)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-content?filePath=${encodeURIComponent(targetPath)}`);
       if (res.ok) {
         const data = await res.json();
         setFileContent(data.content || "");
@@ -292,7 +293,7 @@ function RepoDetail() {
     setSettingsError(false);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/settings`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -328,7 +329,7 @@ function RepoDetail() {
   async function handleDeleteRepository() {
     setDeletingRepo(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`, {
         method: "DELETE"
       });
 
@@ -352,7 +353,7 @@ function RepoDetail() {
     setRevertError(false);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/revert`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/revert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commitHash, author: loggedInUsername })
@@ -492,6 +493,8 @@ function RepoDetail() {
         xhr.onabort = () => reject(new Error("Upload was aborted."));
 
         xhr.open("POST", `${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/upload`);
+        const token = localStorage.getItem("authToken");
+        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         xhr.send(formData);
       });
     } catch (error) {
@@ -527,7 +530,7 @@ function RepoDetail() {
           }
         } else {
           try {
-            const resp = await fetch(
+            const resp = await apiFetch(
               `${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-content?filePath=${encodeURIComponent(filePath)}`
             );
             if (resp.ok) {
@@ -575,7 +578,7 @@ function RepoDetail() {
       const currentUserObj = JSON.parse(localStorage.getItem("user") || "{}");
       const reporterEmail = currentUserObj.gmail || currentUserObj.email || "";
 
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/report`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -619,7 +622,7 @@ function RepoDetail() {
     try {
       const currentUserObj = JSON.parse(localStorage.getItem("user") || "{}");
       const reporterUserId = localStorage.getItem("userId") || currentUserObj.id || "";
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/issues`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/issues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -661,7 +664,7 @@ function RepoDetail() {
     setBranchError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/branches`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/branches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ branchName: cleanName })
@@ -686,7 +689,7 @@ function RepoDetail() {
   }
 
   async function refreshRepoDetails() {
-    const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`);
+    const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`);
     if (res.ok) {
       const data = await res.json();
       setRepo(data);
@@ -712,7 +715,7 @@ function RepoDetail() {
     setMergeError(false);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/merge`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/merge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceBranch: mergeSource, targetBranch: repo.defaultBranch || "main" })
@@ -749,7 +752,7 @@ function RepoDetail() {
     setMergeError(false);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/merge/resolve`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/merge/resolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

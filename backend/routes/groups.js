@@ -75,12 +75,44 @@ function isTeamOwner(group, username, email) {
   return same(group.creator, username) || (Boolean(email) && same(group.creatorEmail, email));
 }
 
+// Identity can arrive in the body, in headers, or in the query string
 function readRequester(req) {
-  const source = req.body || {};
-  return {
-    username: String(source.requester || source.requesterUsername || source.owner || "").trim(),
-    email: String(source.requesterEmail || source.ownerEmail || "").trim(),
+  const body = req.body || {};
+  const query = req.query || {};
+  const pick = (...values) => {
+    for (const value of values) {
+      const clean = String(value == null ? "" : value).trim();
+      if (clean) return clean;
+    }
+    return "";
   };
+
+  return {
+    username: pick(
+      body.requester,
+      body.requesterUsername,
+      body.owner,
+      req.get("x-user-name"),
+      req.get("x-username"),
+      query.requester,
+      query.username
+    ),
+    email: pick(
+      body.requesterEmail,
+      body.ownerEmail,
+      req.get("x-user-email"),
+      req.get("x-user-gmail"),
+      query.requesterEmail,
+      query.email
+    ),
+  };
+}
+
+// Tell the caller who actually owns the team, otherwise the 403 looks like a bug
+function ownerOnlyMessage(group, action, requester) {
+  const owner = `${group.creator}${group.creatorEmail ? ` <${group.creatorEmail}>` : ""}`;
+  const who = requester.username || requester.email || "an unidentified account";
+  return `Only the team owner ${owner} can ${action}. You are signed in as ${who}. Sign in as the team owner and try again.`;
 }
 
 // Strip admin-only and internal fields (unique groupId, invite tokens) before sending a group to the client
@@ -372,7 +404,7 @@ router.post("/:id/members", async (req, res) => {
 
     const requester = readRequester(req);
     if (!isTeamOwner(group, requester.username, requester.email)) {
-      return res.status(403).json({ message: "Only the team owner can add members to this team." });
+      return res.status(403).json({ message: ownerOnlyMessage(group, "add members to this team", requester) });
     }
 
     // Try finding registered user in database by username or email
@@ -487,7 +519,7 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
 
     const requester = readRequester(req);
     if (!isTeamOwner(group, requester.username, requester.email)) {
-      return res.status(403).json({ message: "Only the team owner can change member roles." });
+      return res.status(403).json({ message: ownerOnlyMessage(group, "change member roles", requester) });
     }
 
     const member = group.members.id(req.params.memberId);
@@ -517,7 +549,7 @@ router.delete("/:id/members/:memberId", async (req, res) => {
 
     const requester = readRequester(req);
     if (!isTeamOwner(group, requester.username, requester.email)) {
-      return res.status(403).json({ message: "Only the team owner can remove members." });
+      return res.status(403).json({ message: ownerOnlyMessage(group, "remove members or cancel verifications", requester) });
     }
 
     const memberIndex = group.members.findIndex((m) => m._id.toString() === req.params.memberId);

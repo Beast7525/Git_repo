@@ -42,11 +42,20 @@ export default function Teams() {
   // Retrieve logged-in user
   const currentUser = readStoredUser();
   const loggedInUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
+  // The account email never changes when the profile display name is edited, so it is the
+  // reliable key for deciding who the signed-in account is.
   const loggedInEmail = currentUser.gmail || currentUser.email || "";
   // A member arriving from the ACCEPT link may not be signed in yet, so fall back to
   // the username carried in the link in order to render their team page.
   const lookupUsername = loggedInUsername || invitedMemberName;
   const lookupEmail = loggedInEmail;
+
+  // Sent with every membership change so the API can verify the team owner
+  const identityHeaders = {
+    "Content-Type": "application/json",
+    "x-user-name": loggedInUsername,
+    "x-user-email": loggedInEmail,
+  };
 
   // Load user groups
   const loadUserGroups = useCallback(async () => {
@@ -152,7 +161,7 @@ export default function Teams() {
       startLoading();
       const res = await fetch(`${API_BASE_URL}/api/groups/${selectedGroupForMember._id}/members`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: identityHeaders,
         body: JSON.stringify({
           identifier: rawVal,
           username: usernameToSend,
@@ -194,7 +203,7 @@ export default function Teams() {
       startLoading();
       const res = await fetch(`${API_BASE_URL}/api/groups/${groupId}/members/${memberId}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: identityHeaders,
         body: JSON.stringify({ requester: loggedInUsername, requesterEmail: loggedInEmail })
       });
       if (res.ok) {

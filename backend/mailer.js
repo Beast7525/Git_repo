@@ -1,3 +1,4 @@
+require("./net-setup").preferIpv4();
 const nodemailer = require("nodemailer");
 
 const mailUser = (process.env.MAIL_USER || "").trim();
@@ -43,19 +44,33 @@ function describeMailError(err) {
   return [status, err.message].filter(Boolean).join(" - ");
 }
 
-async function sendWithRetry(mailOptions, retries = 2) {
+// Rejected logins, unknown recipients and blocked senders fail again on every retry,
+// so waiting between attempts only makes the request slower without changing the result.
+function isPermanentMailError(err) {
+  if (String(err.code || "") === "EAUTH") return true;
+  return [534, 535, 550, 551, 553, 554].includes(Number(err.responseCode || 0));
+}
+
+async function sendWithRetry(mailOptions, retries = 3) {
   let lastError = null;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
+    const startedAt = Date.now();
     try {
       await mailTransport.sendMail(mailOptions);
+      if (attempt > 1) console.log(`✉️ Email sent on attempt ${attempt}/${retries}`);
       return { ok: true, error: null };
     } catch (err) {
       lastError = err;
-      const isLast = attempt === retries;
-      console.error(`❌ Email send attempt ${attempt}/${retries} failed:`, err.message);
-      if (isLast) return { ok: false, error: describeMailError(err) };
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      const elapsed = Date.now() - startedAt;
+      console.error(
+        `❌ Email send attempt ${attempt}/${retries} failed after ${elapsed}ms:`,
+        err.code || err.responseCode || "SMTP",
+        err.message
+      );
+      if (isPermanentMailError(err)) return { ok: false, error: describeMailError(err) };
+      if (attempt === retries) break;
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
     }
   }
 

@@ -3,6 +3,7 @@ import "./style/User.css";
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useLoading } from "../context/LoadingContext";
+import { apiFetch } from "../auth/apiFetch";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -59,12 +60,12 @@ function User() {
         }
 
         const query = params.toString() ? `?${params.toString()}` : "";
-        let res = await fetch(`${API_BASE_URL}/api/repos${query}`);
+        let res = await apiFetch(`${API_BASE_URL}/api/repos${query}`);
         if (res.ok) {
           let data = await res.json();
           if (!Array.isArray(data) || data.length === 0) {
             // Fallback to fetch all repos if specific user search was empty
-            const fallbackRes = await fetch(`${API_BASE_URL}/api/repos`);
+            const fallbackRes = await apiFetch(`${API_BASE_URL}/api/repos`);
             if (fallbackRes.ok) {
               data = await fallbackRes.json();
             }

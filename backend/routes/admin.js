@@ -317,4 +317,46 @@ router.get("/groups", async (req, res) => {
   }
 });
 
+// DELETE /api/admin/groups/:id - Delete a group (Admin only action).
+// Accepts either the Mongo id or the unique Group ID (GRP-XXXXXX).
+router.delete("/groups/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let group = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      group = await Group.findById(id);
+    }
+    if (!group) {
+      group = await Group.findOne({ groupId: String(id).trim().toUpperCase() });
+    }
+    if (!group) {
+      return res.status(404).json({ message: "Group not found or already deleted." });
+    }
+
+    const groupObjectId = group._id;
+    const groupName = group.name;
+    const verifiedMembers = (group.members || []).filter((m) => m.status === "accepted").length;
+    const pendingMembers = (group.members || []).filter((m) => m.status === "pending").length;
+
+    // Repositories keep existing, they are only detached from the deleted team
+    const detached = await Repo.updateMany(
+      { $or: [{ group: groupObjectId }, { groupId: group.groupId }, { groupName }] },
+      { $set: { group: null, groupId: "", groupName: "" } }
+    );
+
+    await Group.deleteOne({ _id: groupObjectId });
+
+    res.status(200).json({
+      message: `Group "${groupName}" (${group.groupId}) deleted successfully.`,
+      group: { id: groupObjectId.toString(), groupId: group.groupId, name: groupName },
+      removedMembers: { verified: verifiedMembers, pending: pendingMembers },
+      detachedRepositories: detached.modifiedCount || 0,
+    });
+  } catch (error) {
+    console.error("Error deleting group:", error);
+    res.status(500).json({ message: "Error deleting group: " + error.message });
+  }
+});
+
 module.exports = router;

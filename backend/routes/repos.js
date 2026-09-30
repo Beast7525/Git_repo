@@ -8,8 +8,11 @@ const Group = require("../models/Group");
 const Issue = require("../models/Issue");
 const { initializeRepository, commitFileChange } = require("../gitRepositoryService");
 const { parseGitignore, isIgnored, isGitignoreFile, normalizeRelPath } = require("../gitignore");
+const { isPublicRepo, isRepoOwner, optionalAuth, requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
+
+router.use(optionalAuth);
 
 function escapeRegex(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -46,6 +49,33 @@ async function resolveRepoByOwnerName(owner, repoName) {
     repo = await Repo.findOne({ $or: [{ name: repoRegex }, { repositoryName: repoRegex }] });
   }
   return repo || null;
+}
+
+async function requireRepoOwner(req, res, next) {
+  const repo = await resolveRepoByOwnerName(req.params.owner, req.params.repoName);
+  if (!isRepoOwner(repo, req.authUser)) {
+    return res.status(404).json({ message: "Repository not found" });
+  }
+  req.repo = repo;
+  next();
+}
+
+async function requireRepoAccess(req, res, next) {
+  const repo = await resolveRepoByOwnerName(req.params.owner, req.params.repoName);
+  if (!repo || (!isPublicRepo(repo) && !isRepoOwner(repo, req.authUser))) {
+    return res.status(404).json({ message: "Repository not found" });
+  }
+  req.repo = repo;
+  next();
+}
+
+async function requireRepoOwnerById(req, res, next) {
+  const repo = await Repo.findById(req.params.id).catch(() => null);
+  if (!isRepoOwner(repo, req.authUser)) {
+    return res.status(404).json({ message: "Repository not found" });
+  }
+  req.repo = repo;
+  next();
 }
 
 async function fetchFileText(repo, fileObj) {
@@ -161,7 +191,23 @@ router.get("/", async (req, res) => {
       filter = { $or: conditions };
     }
 
-    const repos = await Repo.find(filter).sort({ createdAt: -1 });
+    const visibleToUser = [
+      { visibility: /^public$/i },
+      { visibility: { $exists: false } },
+      { visibility: null },
+    ];
+    if (req.authUser) {
+      const ownerRegex = flexibleIdentityRegex(req.authUser.username);
+      if (ownerRegex) visibleToUser.push({ owner: ownerRegex });
+      if (req.authUser.gmail) {
+        const emailRegex = new RegExp(`^${escapeRegex(req.authUser.gmail)}$`, "i");
+        visibleToUser.push({ ownerEmail: emailRegex }, { owner: emailRegex });
+      }
+    }
+
+    const accessFilter = { $or: visibleToUser };
+    const combinedFilter = Object.keys(filter).length ? { $and: [filter, accessFilter] } : accessFilter;
+    const repos = await Repo.find(combinedFilter).sort({ createdAt: -1 });
     res.status(200).json(repos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching repositories: " + error.message });
@@ -169,9 +215,9 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/repos
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   try {
-    const { repositoryName, name, description, visibility, ignoreGitignore, owner, ownerEmail, groupId } = req.body;
+    const { repositoryName, name, description, visibility, ignoreGitignore, groupId } = req.body;
     const finalRepoName = (repositoryName || name || "").trim();
 
     if (!finalRepoName) {
@@ -205,8 +251,8 @@ router.post("/", async (req, res) => {
       description: description || "",
       visibility: visibility || "public",
       ignoreGitignore: !!ignoreGitignore,
-      owner: owner || "Admin",
-      ownerEmail: ownerEmail || "",
+      owner: req.authUser.username,
+      ownerEmail: req.authUser.gmail,
       group: groupRef,
       groupId: groupId || "",
       groupName: groupNameStr,
@@ -231,7 +277,7 @@ router.post("/", async (req, res) => {
 });
 
 // POST /api/repos/:id/upload - Store files, initialize git, commit, and optionally push to origin
-router.post("/:id/upload", async (req, res) => {
+router.post("/:id/upload", requireAuth, requireRepoOwnerById, async (req, res) => {
   try {
     const { files, remoteUrl } = req.body;
 
@@ -280,7 +326,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const { b2, authorizeB2 } = require("../backblaze");
 
 // POST /api/repos/find/:owner/:repoName/upload - Upload single/multiple files or folder to Backblaze B2
-router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
+router.post("/find/:owner/:repoName/upload", requireAuth, requireRepoOwner, upload.any(), async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { message, branch } = req.body || {};
@@ -452,7 +498,7 @@ router.post("/find/:owner/:repoName/upload", upload.any(), async (req, res) => {
 });
 
 // POST /api/repos/find/:owner/:repoName/branches - Create a new branch
-router.post("/find/:owner/:repoName/branches", async (req, res) => {
+router.post("/find/:owner/:repoName/branches", requireAuth, requireRepoOwner, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { branchName } = req.body || {};
@@ -548,6 +594,10 @@ router.get("/find/:owner/:repoName", async (req, res) => {
       return res.status(404).json({ message: "Repository not found" });
     }
 
+    if (!isPublicRepo(repo) && !isRepoOwner(repo, req.authUser)) {
+      return res.status(404).json({ message: "Repository not found" });
+    }
+
     // Ensure full commitHistory timeline is preserved for the graph
     repo.commitHistory = repo.commitHistory || [];
 
@@ -626,6 +676,10 @@ router.get("/find/:owner/:repoName/file-content", async (req, res) => {
     }
 
     if (!repo) {
+      return res.status(404).json({ message: "Repository not found" });
+    }
+
+    if (!isPublicRepo(repo) && !isRepoOwner(repo, req.authUser)) {
       return res.status(404).json({ message: "Repository not found" });
     }
 
@@ -713,7 +767,7 @@ router.get("/find/:owner/:repoName/file-content", async (req, res) => {
 });
 
 // PUT /api/repos/find/:owner/:repoName/file-content - Edit file content and commit changes
-router.put("/find/:owner/:repoName/file-content", async (req, res) => {
+router.put("/find/:owner/:repoName/file-content", requireAuth, requireRepoOwner, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { filePath, content, message } = req.body || {};
@@ -831,7 +885,7 @@ router.put("/find/:owner/:repoName/file-content", async (req, res) => {
 });
 
 // PUT /api/repos/find/:owner/:repoName/settings - Update repo settings (Name, Visibility, Group, Description)
-router.put("/find/:owner/:repoName/settings", async (req, res) => {
+router.put("/find/:owner/:repoName/settings", requireAuth, requireRepoOwner, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { newName, visibility, groupId, description } = req.body;
@@ -929,7 +983,7 @@ router.put("/find/:owner/:repoName/settings", async (req, res) => {
 });
 
 // DELETE /api/repos/find/:owner/:repoName - Delete repository
-router.delete("/find/:owner/:repoName", async (req, res) => {
+router.delete("/find/:owner/:repoName", requireAuth, requireRepoOwner, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
 
@@ -979,7 +1033,7 @@ router.delete("/find/:owner/:repoName", async (req, res) => {
 });
 
 // POST /api/repos/find/:owner/:repoName/revert - Revert repository to a specific commit & push to main
-router.post("/find/:owner/:repoName/revert", async (req, res) => {
+router.post("/find/:owner/:repoName/revert", requireAuth, requireRepoOwner, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { commitHash, author } = req.body;
@@ -1063,7 +1117,7 @@ router.post("/find/:owner/:repoName/revert", async (req, res) => {
 });
 
 // POST /api/repos/find/:owner/:repoName/report - Report repository with reason
-router.post("/find/:owner/:repoName/report", async (req, res) => {
+router.post("/find/:owner/:repoName/report", requireRepoAccess, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { reason, reportedBy, reporterEmail } = req.body || {};
@@ -1119,7 +1173,7 @@ router.post("/find/:owner/:repoName/report", async (req, res) => {
 });
 
 // POST /api/repos/find/:owner/:repoName/issues - Raise an issue for a repo (sent to the owner/team)
-router.post("/find/:owner/:repoName/issues", async (req, res) => {
+router.post("/find/:owner/:repoName/issues", requireRepoAccess, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { title, description, author, reporterUserId } = req.body || {};
@@ -1188,7 +1242,7 @@ router.post("/find/:owner/:repoName/issues", async (req, res) => {
 });
 
 // POST /api/repos/find/:owner/:repoName/merge - Analyze pulling a source branch into the target branch
-router.post("/find/:owner/:repoName/merge", async (req, res) => {
+router.post("/find/:owner/:repoName/merge", requireAuth, requireRepoOwner, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { sourceBranch, targetBranch } = req.body || {};
@@ -1265,7 +1319,7 @@ router.post("/find/:owner/:repoName/merge", async (req, res) => {
 });
 
 // POST /api/repos/find/:owner/:repoName/merge/resolve - Apply conflict resolutions and complete the merge
-router.post("/find/:owner/:repoName/merge/resolve", async (req, res) => {
+router.post("/find/:owner/:repoName/merge/resolve", requireAuth, requireRepoOwner, async (req, res) => {
   try {
     const { owner, repoName } = req.params;
     const { sourceBranch, targetBranch, resolutions } = req.body || {};

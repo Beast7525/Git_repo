@@ -243,6 +243,24 @@ export async function fetchGroupsFromDB() {
   return [];
 }
 
+// Admin only: permanently delete a group (repositories are detached, not deleted)
+export async function deleteGroupFromDB(groupId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/groups/${groupId}`, {
+      method: "DELETE"
+    });
+    if (res.status === 404) return { ok: true, message: "Group was already deleted." };
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: false, message: data.message || "Failed to delete group." };
+    }
+    return { ok: true, ...(await res.json().catch(() => ({}))) };
+  } catch (e) {
+    console.error("Error deleting group in DB:", e);
+    return { ok: false, message: "Error connecting to server: " + e.message };
+  }
+}
+
 // --- REPOSITORY MANAGEMENT DB API ---
 export async function fetchReposFromDB() {
   try {

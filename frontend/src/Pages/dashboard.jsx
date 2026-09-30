@@ -12,6 +12,15 @@ function Dashboard({ closeSidebar }) {
   const username = localStorage.getItem("username") || currentUser.username || "";
   const userPath = username ? `/${username}` : "/User";
 
+  function handleLogout() {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("user");
+    localStorage.removeItem("username");
+    localStorage.removeItem("userId");
+    navigate("/", { replace: true });
+    closeSidebar();
+  }
+
   return (
     <div className="sidebar">
       <button className="close-btn" onClick={closeSidebar}>
@@ -27,7 +36,7 @@ function Dashboard({ closeSidebar }) {
         <p onClick={() => { navigate('/All_Repository'); closeSidebar(); }}>All Repositories</p>
         <p onClick={() => { navigate('/teams'); closeSidebar(); }}>Team Member</p>
         <p onClick={() => { navigate('/User_Profile'); closeSidebar(); }}>Profile</p>
-        <p onClick={() => { navigate('/'); closeSidebar(); }}>logout</p>
+        <p onClick={handleLogout}>logout</p>
       </div>
     </div>
   );

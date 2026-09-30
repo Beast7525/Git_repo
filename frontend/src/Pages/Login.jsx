@@ -70,6 +70,7 @@ function Login() {
         return;
       }
 
+      localStorage.setItem("authToken", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("username", data.user.username);
       localStorage.setItem("userId", data.user.id);

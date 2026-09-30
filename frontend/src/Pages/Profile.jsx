@@ -5,6 +5,7 @@ import NotFound from "./NotFound";
 import profileImg from "./assert/profile.png";
 import "./style/User.css";
 import { useLoading } from "../context/LoadingContext";
+import { apiFetch } from "../auth/apiFetch";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -43,7 +44,7 @@ function Profile() {
         // Fetch user profile info
         let fetchedUser = null;
         try {
-          const userRes = await fetch(`${API_BASE_URL}/api/auth/user/${encodeURIComponent(username)}`);
+          const userRes = await apiFetch(`${API_BASE_URL}/api/auth/user/${encodeURIComponent(username)}`);
           if (userRes.ok) {
             const userData = await userRes.json();
             fetchedUser = userData.user;
@@ -79,7 +80,7 @@ function Profile() {
           }
         }
 
-        const repoRes = await fetch(`${API_BASE_URL}/api/repos?${repoParams.toString()}`);
+        const repoRes = await apiFetch(`${API_BASE_URL}/api/repos?${repoParams.toString()}`);
         let fetchedRepos = [];
         if (repoRes.ok) {
           fetchedRepos = await repoRes.json();
@@ -87,7 +88,7 @@ function Profile() {
 
         // Fallback to the signed-in user's email when the URL slug differs from the stored display name.
         if (fetchedRepos.length === 0 && profileEmail) {
-          const repoEmailRes = await fetch(`${API_BASE_URL}/api/repos?ownerEmail=${encodeURIComponent(profileEmail)}`);
+          const repoEmailRes = await apiFetch(`${API_BASE_URL}/api/repos?ownerEmail=${encodeURIComponent(profileEmail)}`);
           if (repoEmailRes.ok) {
             const emailRepos = await repoEmailRes.json();
             if (emailRepos.length > 0) {
