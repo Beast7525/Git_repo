@@ -880,7 +880,9 @@ function RepoDetail() {
     return null;
   }
 
-  const isPublic = repo.visibility === "public" || repo.visibility === "Public";
+  const visibility = String(repo.visibility || "public").trim().toLowerCase();
+  const isPublic = visibility === "public";
+  const isTeamOnly = visibility === "team member" || visibility === "team";
   const repoFiles = repo.files || [];
   const activeBranch = selectedBranch || repo.defaultBranch || "main";
   const repoBranches = Array.isArray(repo.branches) && repo.branches.length > 0 ? repo.branches : [repo.defaultBranch || "main"];
@@ -928,7 +930,7 @@ function RepoDetail() {
     .map((commit, historyIndex) => ({ commit, historyIndex }))
     .filter(({ commit }) => graphBranchFilter === "all" ||
       (commit.branch || repo.defaultBranch || "main") === graphBranchFilter);
-  const graphRowHeight = 48;
+  const graphRowHeight = 56;
   const graphLaneWidth = Math.max(76, graphBranches.length * 34 + 16);
   const graphHeight = Math.max(graphRowHeight, visibleGraphHistory.length * graphRowHeight);
   const graphNodes = visibleGraphHistory.map(({ commit, historyIndex }, index) => {
@@ -986,8 +988,13 @@ function RepoDetail() {
                     <span className="gh-hero-sep">/</span>
                     <span className="gh-hero-repo">{repo.name}</span>
                   </h1>
-                  <span className={`gh-visibility ${isPublic ? "" : "gh-visibility-private"}`}>
-                    {isPublic ? "Public" : "Private"}
+                  <span
+                    className={`gh-visibility ${
+                      isPublic ? "" : isTeamOnly ? "gh-visibility-team" : "gh-visibility-private"
+                    }`}
+                    title={isTeamOnly && repo.groupName ? `Shared with ${repo.groupName}` : undefined}
+                  >
+                    {isPublic ? "Public" : isTeamOnly ? "Team" : "Private"}
                   </span>
                 </div>
                 <p className="gh-hero-desc">
@@ -1161,10 +1168,10 @@ function RepoDetail() {
                         key={`${node.commit.hash || node.index}-node`}
                         cx={node.x}
                         cy={node.y}
-                        r="4.5"
+                        r="5.5"
                         fill={node.color}
                         stroke="#1e1e1e"
-                        strokeWidth="1.5"
+                        strokeWidth="2"
                         aria-label={node.tooltip.replaceAll("\n", ". ")}
                       >
                         <title>{node.tooltip}</title>
@@ -1186,11 +1193,6 @@ function RepoDetail() {
                         <div className="gitgraph-commit-main">
                           <span className="gitgraph-hash">{commit.hash ? commit.hash.slice(0, 7) : "commit"}</span>
                           <span className="gitgraph-message">{commit.message || "Commit update"}</span>
-                        </div>
-                        <div className="gitgraph-commit-meta">
-                          <span>{commit.author || ownerName}</span>
-                          <span>{commit.committedAt ? new Date(commit.committedAt).toLocaleString() : "Recently"}</span>
-                          <span className="gitgraph-branch" style={{ "--branch-color": color }}>{branch}</span>
                         </div>
                         <button
                           className="gitgraph-inspect"

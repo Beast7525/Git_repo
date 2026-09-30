@@ -81,6 +81,9 @@ function All_Repository() {
               const ownerSlug = ownerName.trim().replace(/\s+/g, "-").toLowerCase();
               const repoPath = `/${ownerSlug}/${encodeURIComponent(displayName)}`;
               const ownerPath = `/${ownerSlug}`;
+              const visibility = String(repo.visibility || "public").trim().toLowerCase();
+              const isPublic = visibility === "public";
+              const isTeamOnly = visibility === "team member" || visibility === "team";
               return (
                 <article
                   key={repo._id || repo.id}
@@ -94,8 +97,13 @@ function All_Repository() {
                         {displayName}
                       </span>
                     </h3>
-                    <span className={`repo-badge ${repo.visibility === "public" || repo.visibility === "Public" ? "public" : "private"}`}>
-                      {repo.visibility === "public" || repo.visibility === "Public" ? "Public" : "Private"}
+                    <span
+                      className={`repo-badge ${
+                        isPublic ? "public" : isTeamOnly ? "team" : "private"
+                      }`}
+                      title={isTeamOnly && repo.groupName ? `Shared with ${repo.groupName}` : undefined}
+                    >
+                      {isPublic ? "Public" : isTeamOnly ? "Team" : "Private"}
                     </span>
                   </div>
                   <p className="repo-card-desc">{repo.description || "No description provided for this repository."}</p>

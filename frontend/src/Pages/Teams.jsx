@@ -332,11 +332,23 @@ export default function Teams() {
                     <>
                       <div className="team-section-title">Group Repositories</div>
                       <div className="team-repos-list">
-                        {group.repositories.map((r) => (
-                          <span key={r._id || r.name} className="team-repo-chip">
-                            {r.name || r.repositoryName || "repo"}
-                          </span>
-                        ))}
+                        {group.repositories.map((r) => {
+                          const repoName = r.name || r.repositoryName || "repo";
+                          // Same path the repository list links to, so a chip opens the repo.
+                          const repoOwner = r.owner || group.creator;
+                          const ownerSlug = String(repoOwner).trim().replace(/\s+/g, "-").toLowerCase();
+                          return (
+                            <button
+                              key={r._id || repoName}
+                              type="button"
+                              className="team-repo-chip"
+                              onClick={() => navigate(`/${ownerSlug}/${encodeURIComponent(repoName)}`)}
+                              title={`Open ${repoName}`}
+                            >
+                              {repoName}
+                            </button>
+                          );
+                        })}
                       </div>
                     </>
                   )}

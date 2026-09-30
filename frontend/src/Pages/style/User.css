@@ -451,6 +451,12 @@ h2 {
   border: 1px solid rgba(229, 189, 114, 0.3);
 }
 
+.repo-badge.team {
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+  border: 1px solid rgba(88, 166, 255, 0.35);
+}
+
 .repo-card-desc {
   margin: 0 0 14px;
   font-size: 0.85rem;

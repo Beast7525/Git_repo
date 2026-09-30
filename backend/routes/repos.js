@@ -8,7 +8,7 @@ const Group = require("../models/Group");
 const Issue = require("../models/Issue");
 const { initializeRepository, commitFileChange } = require("../gitRepositoryService");
 const { parseGitignore, isIgnored, isGitignoreFile, normalizeRelPath } = require("../gitignore");
-const { isPublicRepo, isRepoOwner, optionalAuth, requireAuth } = require("../middleware/auth");
+const { isGroupMember, isPublicRepo, isRepoOwner, optionalAuth, requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -26,6 +26,96 @@ function flexibleIdentityRegex(value) {
     .map(escapeRegex);
 
   return parts.length ? new RegExp(`^${parts.join("[\\s\\-_]+")}$`, "i") : null;
+}
+
+// Same idea as flexibleIdentityRegex, but it also matches the joined-together spelling
+// ("alexwright"), which is what the signed-in account's own username resolves to.
+function tolerantIdentityRegex(value) {
+  const parts = String(value || "")
+    .trim()
+    .split(/[\s\-_]+/)
+    .filter(Boolean)
+    .map(escapeRegex);
+
+  if (!parts.length) return null;
+  if (parts.length === 1) return new RegExp(`^${parts[0]}$`, "i");
+  return new RegExp(`^${parts.join("[\\s\\-_]*")}$`, "i");
+}
+
+function isObjectIdLike(value) {
+  return typeof value === "string" && /^[0-9a-fA-F]{24}$/.test(value);
+}
+
+// Which repositories are shared with the signed-in account through a team it belongs to.
+// Identity comes from the verified token, never from a query string, and membership is
+// restricted to accepted invitations.
+async function teamReposForUser(user) {
+  if (!user) return { groupIds: [], repoIds: [] };
+
+  const usernameRegex = tolerantIdentityRegex(user.username);
+  const emailRegex = user.gmail ? new RegExp(`^${escapeRegex(user.gmail)}$`, "i") : null;
+
+  const conditions = [];
+  if (usernameRegex) {
+    conditions.push({ creator: usernameRegex });
+    // $elemMatch keeps the status check on the SAME member row as the username, which a
+    // pair of sibling conditions on one array cannot guarantee.
+    conditions.push({ members: { $elemMatch: { status: "accepted", username: usernameRegex } } });
+  }
+  if (emailRegex) {
+    conditions.push({ creatorEmail: emailRegex });
+    conditions.push({ members: { $elemMatch: { status: "accepted", email: emailRegex } } });
+  }
+  if (!conditions.length) return { groupIds: [], repoIds: [] };
+
+  const groups = await Group.find({ $or: conditions }).select("_id repositories");
+  return {
+    groupIds: groups.map((g) => g._id),
+    repoIds: groups.flatMap((g) => g.repositories || []).filter(Boolean)
+  };
+}
+
+// Same lookup as teamReposForUser, but for an arbitrary set of group match conditions
+// (used when browsing someone else's profile).
+async function teamReposForGroups(groupSearchConditions) {
+  const groups = await Group.find({ $or: groupSearchConditions }).select("_id repositories");
+  return {
+    groupIds: groups.map((g) => g._id),
+    repoIds: groups.flatMap((g) => g.repositories || []).filter(Boolean)
+  };
+}
+
+function teamRepoConditions({ groupIds, repoIds }) {
+  const conditions = [];
+  if (groupIds && groupIds.length) conditions.push({ group: { $in: groupIds } });
+  if (repoIds && repoIds.length) conditions.push({ _id: { $in: repoIds } });
+  return conditions.length ? [{ $or: conditions }] : [];
+}
+
+// Single source of truth for "may this account look at this repository".
+// A repository is readable when it is public, owned by the caller, or shared with a
+// team the caller has accepted an invitation to.
+async function canViewRepo(repo, user) {
+  if (!repo) return false;
+  if (isPublicRepo(repo)) return true;
+  if (!user) return false;
+  if (isRepoOwner(repo, user)) return true;
+
+  // The association is written to both sides (Repo.group and Group.repositories), and the
+  // two can disagree after older writes, so accept either one.
+  const references = [repo.group, repo.groupId, repo.groupName, repo._id]
+    .filter((value) => value !== undefined && value !== null && value !== "")
+    .map((value) => String(value));
+
+  const candidates = [];
+  const objectIdRefs = references.filter(isObjectIdLike).map((value) => new mongoose.Types.ObjectId(value));
+  if (objectIdRefs.length) candidates.push({ _id: { $in: objectIdRefs } });
+  candidates.push({ groupId: { $in: references } });
+  candidates.push({ name: { $in: references } });
+  candidates.push({ repositories: repo._id });
+
+  const groups = await Group.find({ $or: candidates });
+  return groups.some((group) => isGroupMember(group, user));
 }
 
 // ===== Branch merge (pull) helpers =====
@@ -62,7 +152,7 @@ async function requireRepoOwner(req, res, next) {
 
 async function requireRepoAccess(req, res, next) {
   const repo = await resolveRepoByOwnerName(req.params.owner, req.params.repoName);
-  if (!repo || (!isPublicRepo(repo) && !isRepoOwner(repo, req.authUser))) {
+  if (!(await canViewRepo(repo, req.authUser))) {
     return res.status(404).json({ message: "Repository not found" });
   }
   req.repo = repo;
@@ -194,32 +284,24 @@ router.get("/", async (req, res) => {
         }
       }
 
-      // Check for user's groups to include team repositories!
+      // Repositories of a team the *queried* profile belongs to, so browsing someone's
+      // profile shows what that profile can see. Access is still enforced below.
       const groupSearchConditions = [];
       if (owner) {
-        const ownerRegex = flexibleIdentityRegex(owner);
+        const ownerRegex = tolerantIdentityRegex(owner);
         if (ownerRegex) {
           groupSearchConditions.push({ creator: ownerRegex });
-          groupSearchConditions.push({ "members.username": ownerRegex });
+          groupSearchConditions.push({ members: { $elemMatch: { status: "accepted", username: ownerRegex } } });
         }
       }
       if (ownerEmail) {
         const escapedEmail = escapeRegex(ownerEmail);
         groupSearchConditions.push({ creatorEmail: new RegExp(`^${escapedEmail}$`, "i") });
-        groupSearchConditions.push({ "members.email": new RegExp(`^${escapedEmail}$`, "i") });
+        groupSearchConditions.push({ members: { $elemMatch: { status: "accepted", email: new RegExp(`^${escapedEmail}$`, "i") } } });
       }
 
       if (groupSearchConditions.length > 0) {
-        const userGroups = await Group.find({ $or: groupSearchConditions });
-        if (userGroups.length > 0) {
-          const groupObjectIds = userGroups.map(g => g._id);
-          const groupRepoIds = userGroups.flatMap(g => g.repositories || []).filter(Boolean);
-
-          conditions.push({ group: { $in: groupObjectIds } });
-          if (groupRepoIds.length > 0) {
-            conditions.push({ _id: { $in: groupRepoIds } });
-          }
-        }
+        conditions.push(...teamRepoConditions(await teamReposForGroups(groupSearchConditions)));
       }
 
       filter = { $or: conditions };
@@ -245,6 +327,15 @@ router.get("/", async (req, res) => {
         });
       } else if (ownerRegex) {
         visibleToUser.push({ owner: ownerRegex });
+      }
+
+      // Repositories shared with the signed-in account's teams. This is added on BOTH sides
+      // of the final $and so a team repository is returned even when ?owner names someone
+      // else (profile browsing) or is missing entirely.
+      const ownTeamConditions = teamRepoConditions(await teamReposForUser(req.authUser));
+      visibleToUser.push(...ownTeamConditions);
+      if (Object.keys(filter).length && ownTeamConditions.length) {
+        filter = { $or: [...(filter.$or || []), ...ownTeamConditions] };
       }
     }
 
@@ -302,6 +393,11 @@ router.post("/", requireAuth, async (req, res) => {
     let groupNameStr = "";
     if (groupId) {
       const groupDoc = await Group.findById(groupId).catch(() => null);
+      // A repository can only be placed in a team its creator has actually joined, which
+      // is the same rule the settings endpoint applies when sharing an existing repository.
+      if (groupDoc && !isGroupMember(groupDoc, req.authUser)) {
+        return res.status(403).json({ message: "You must be an accepted member of the selected team." });
+      }
       if (groupDoc) {
         groupRef = groupDoc._id;
         groupNameStr = groupDoc.name;
@@ -657,7 +753,7 @@ router.get("/find/:owner/:repoName", async (req, res) => {
       return res.status(404).json({ message: "Repository not found" });
     }
 
-    if (!isPublicRepo(repo) && !isRepoOwner(repo, req.authUser)) {
+    if (!(await canViewRepo(repo, req.authUser))) {
       return res.status(404).json({ message: "Repository not found" });
     }
 
@@ -764,7 +860,7 @@ router.get("/find/:owner/:repoName/file-content", async (req, res) => {
       return res.status(404).json({ message: "Repository not found" });
     }
 
-    if (!isPublicRepo(repo) && !isRepoOwner(repo, req.authUser)) {
+    if (!(await canViewRepo(repo, req.authUser))) {
       return res.status(404).json({ message: "Repository not found" });
     }
 

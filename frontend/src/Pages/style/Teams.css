@@ -219,6 +219,13 @@
   border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.team-repo-chip:hover {
+  background: rgba(167, 221, 166, 0.2);
+  border-color: rgba(167, 221, 166, 0.45);
 }
 
 .team-card-actions {

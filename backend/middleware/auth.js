@@ -7,6 +7,20 @@ if (process.env.NODE_ENV === "production" && !process.env.AUTH_TOKEN_SECRET) {
 }
 const tokenLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 
+// The app has stored the same identity under several spellings over time
+// ("Alexander Wright", "alexander-wright", "alexanderwright"), so compare them in a
+// separator-insensitive way instead of with a literal match.
+function normalizeIdentity(value) {
+  return String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function identityMatchesUser(value, user) {
+  const candidate = normalizeIdentity(value);
+  if (!candidate || !user) return false;
+  return candidate === normalizeIdentity(user.username) ||
+    (Boolean(user.gmail) && candidate === normalizeIdentity(user.gmail));
+}
+
 function createAuthToken(userId) {
   const payload = Buffer.from(JSON.stringify({
     sub: userId.toString(),
@@ -59,6 +73,18 @@ function normalizeUsername(value) {
   return String(value || "").toLowerCase().replace(/[\s_-]+/g, "");
 }
 
+// A user counts as a member of a team only once they have ACCEPTED the invitation.
+// Rows still waiting for a decision, and rows they declined, are not membership.
+// The team owner always counts, even if their members row is missing.
+function isGroupMember(group, user) {
+  if (!group || !user) return false;
+  if (identityMatchesUser(group.creator, user) || identityMatchesUser(group.creatorEmail, user)) return true;
+
+  return (group.members || []).some(
+    (member) => member.status === "accepted" && identityMatchesUser(member.username, user)
+  );
+}
+
 function isRepoOwner(repo, user) {
   if (!repo || !user) return false;
   const email = String(user.gmail || "").trim().toLowerCase();
@@ -74,8 +100,11 @@ function isPublicRepo(repo) {
 
 module.exports = {
   createAuthToken,
+  isGroupMember,
   isPublicRepo,
   isRepoOwner,
+  identityMatchesUser,
+  normalizeIdentity,
   optionalAuth,
   requireAuth,
   verifyAuthToken,
