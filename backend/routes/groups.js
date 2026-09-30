@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const Group = require("../models/Group");
 const Repo = require("../models/Repo");
 const User = require("../models/User");
+const { optionalAuth, requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -259,14 +260,17 @@ router.post("/", async (req, res) => {
 });
 
 // DELETE /api/groups/:id - Delete a team group while keeping its repositories
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", optionalAuth, requireAuth, async (req, res) => {
   try {
     const group = await Group.findById(req.params.id).catch(() => null);
     if (!group) {
       return res.status(404).json({ message: "Team not found or already deleted." });
     }
 
-    const requester = readRequester(req);
+    const requester = {
+      username: req.authUser.username,
+      email: req.authUser.gmail,
+    };
     if (!isTeamOwner(group, requester.username, requester.email)) {
       return res.status(403).json({ message: ownerOnlyMessage(group, "delete this team", requester) });
     }

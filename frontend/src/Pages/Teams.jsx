@@ -3,6 +3,7 @@ import { useSearchParams, useParams } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/Teams.css";
 import { useLoading } from "../context/LoadingContext";
+import { apiFetch } from "../auth/apiFetch";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -232,7 +233,7 @@ export default function Teams() {
 
     try {
       startLoading();
-      const res = await fetch(`${API_BASE_URL}/api/groups/${group._id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/groups/${group._id}`, {
         method: "DELETE",
         headers: identityHeaders,
         body: JSON.stringify({ requester: loggedInUsername, requesterEmail: loggedInEmail })
