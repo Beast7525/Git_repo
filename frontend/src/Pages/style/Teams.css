@@ -62,11 +62,13 @@
   max-width: 1000px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 20px;
 }
 
 .team-card {
+  box-sizing: border-box;
+  min-width: 0;
   background: #15241b;
   border: 1px solid rgba(167, 221, 166, 0.18);
   border-radius: 14px;
@@ -97,10 +99,12 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
 .team-card-title {
+  min-width: 0;
   margin: 0 0 4px;
   font-size: 1.25rem;
   color: #ffffff;
@@ -109,6 +113,10 @@
 
 .team-creator-badge {
   display: inline-block;
+  max-width: 48%;
+  box-sizing: border-box;
+  text-align: center;
+  white-space: normal;
   font-size: 0.72rem;
   padding: 3px 8px;
   border-radius: 12px;
@@ -120,6 +128,10 @@
 
 .team-role-badge {
   display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-size: 0.72rem;
   padding: 3px 8px;
   border-radius: 12px;
@@ -164,8 +176,11 @@
 
 .member-item {
   display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   background: rgba(15, 29, 20, 0.7);
   padding: 8px 12px;
   border-radius: 8px;
@@ -175,11 +190,16 @@
 
 .member-info {
   display: flex;
+  min-width: 0;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
 .member-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: #e7f1e5;
   font-weight: 600;
 }
@@ -207,6 +227,22 @@
   margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid rgba(167, 221, 166, 0.1);
+}
+
+.member-actions {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-actions > button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .btn-add-member {
@@ -378,6 +414,9 @@
 }
 
 .member-email {
+  min-width: 0;
+  flex: 1 1 120px;
+  overflow-wrap: anywhere;
   font-size: 0.75rem;
   color: #748779;
 }

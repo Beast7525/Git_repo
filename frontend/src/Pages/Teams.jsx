@@ -304,7 +304,7 @@ export default function Teams() {
                               <span className="member-status accepted">Verified</span>
                             )}
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div className="member-actions">
                             <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>
                               {isMemberCreator ? 'Owner / Creator' : 'Editor'}
                             </span>
