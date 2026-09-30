@@ -4,6 +4,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const dns = require("dns");
+const path = require("path");
 const { authorizeB2 } = require("./backblaze");
 
 const app = express();
@@ -11,6 +12,12 @@ const app = express();
 // Middleware
 app.use(express.json({ limit: "50mb" }));
 app.use(cors());
+
+// Serve static assets from frontend build if directory exists
+const distPath = path.join(__dirname, "../frontend/dist");
+if (require("fs").existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
 
 app.get("/", (req, res) => {
   res.json({

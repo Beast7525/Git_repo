@@ -844,7 +844,7 @@ function RepoDetail() {
     (f) => (f.branch || repo.defaultBranch || "main") === activeBranch
   );
   const ownerName = repo.owner || username;
-  const cloneUrl = repo.remoteUrl || `https://git-repo-zlhn.onrender.com/${username}/${repo.name}.git`;
+  const cloneUrl = repo.remoteUrl || `${API_BASE_URL}/${username}/${repo.name}.git`;
   const avatarUrl = defaultProfile;
 
   // Synthesize history list for VS Code style Git Graph containing ALL previous commits
