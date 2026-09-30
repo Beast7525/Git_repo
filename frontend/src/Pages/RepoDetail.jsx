@@ -1573,7 +1573,6 @@ function RepoDetail() {
                             >
                               {file.path || file.b2FileName}
                             </button>
-                            <span className="gh-b2-badge">{file.b2Url ? "B2 Cloud" : "Local"}</span>
                             <span className="gh-file-desc">
                               {getFileCommitMessage(file, rawHistory, repo.defaultBranch)}
                             </span>
