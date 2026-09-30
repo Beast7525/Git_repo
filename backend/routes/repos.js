@@ -1015,6 +1015,13 @@ router.put("/find/:owner/:repoName/settings", requireAuth, requireRepoOwner, asy
       return res.status(400).json({ message: "Choose Public, Private, or Team Member visibility." });
     }
 
+    const currentVisibility = String(repo.visibility || "public").trim().toLowerCase();
+    if (currentVisibility !== "public" && nextVisibility === "public") {
+      return res.status(403).json({
+        message: "A private or team-only repository cannot be changed back to public.",
+      });
+    }
+
     let nextGroup = null;
     if (nextVisibility === "Team Member") {
       const requestedGroupId = String(groupId ?? repo.group?._id ?? repo.groupId ?? "").trim();

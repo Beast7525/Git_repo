@@ -148,7 +148,8 @@ export default function Teams() {
     }
   }
 
-  // Add Member Submit - the team owner adds a member, who verifies through the email
+  // Invite Member Submit - the team owner invites a member, who accepts it from their
+  // own notifications. Nobody is added to the team until that happens.
   async function handleAddMember(e) {
     e.preventDefault();
     if (!selectedGroupForMember) return;
@@ -175,23 +176,18 @@ export default function Teams() {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setIsError(!data.emailSent && Boolean(data.emailError));
-        setMessage(
-          data.message ||
-            (data.emailSent
-              ? `Verification email sent to ${rawVal}.`
-              : `Member added, but the verification email could not be sent.`)
-        );
+        setIsError(false);
+        setMessage(data.message || `Invitation created for ${rawVal}.`);
         setNewMemberForm({ identifier: "", role: "editor" });
         setSelectedGroupForMember(null);
         loadUserGroups();
       } else {
         setIsError(true);
-        setMessage(data.message || "Failed to add member.");
+        setMessage(data.message || "Failed to invite member.");
       }
     } catch (err) {
       setIsError(true);
-      setMessage("Error adding member: " + err.message);
+      setMessage("Error inviting member: " + err.message);
     } finally {
       stopLoading();
     }

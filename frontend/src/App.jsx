@@ -6,13 +6,13 @@ import User_profile from "./Pages/User_Profile";
 import dashboard from "./Pages/dashboard";
 import User_header from "./Pages/User_header";
 import Stars from "./Pages/Stars";
+import Notifications from "./Pages/Notifications";
 import Issue from "./Pages/Issue";
 import All_Repository from "./Pages/All_Repository";
 import Layout from "./Pages/Layout";
 import ForgotPassword from "./Pages/ForgotPassword";
 import Repository from "./Pages/Repostiory";
 import Teams from "./Pages/Teams";
-import AcceptInvite from "./Pages/AcceptInvite";
 import AdminDashboard from "./Pages/admin/AdminDashboard";
 import AdminLogin from "./Pages/admin/AdminLogin";
 import Profile from "./Pages/Profile";
@@ -26,7 +26,6 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/ForgotPassword" element={<ForgotPassword />} />
-        <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/admin/login" element={<AdminLogin />} />
 
         <Route element={<RequireAuth />}>
@@ -35,6 +34,7 @@ function App() {
           <Route path="/dashboard" element={<dashboard />} />
           <Route path="/User_header" element={<User_header />} />
           <Route path="/Stars" element={<Stars />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/Issue" element={<Issue />} />
           <Route path="/Repository" element={<Repository />} />
           <Route path="/teams" element={<Teams />} />

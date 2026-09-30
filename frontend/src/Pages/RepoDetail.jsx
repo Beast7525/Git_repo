@@ -1149,6 +1149,7 @@ function RepoDetail() {
                         type="radio"
                         name="repo-vis"
                         value="public"
+                        disabled={String(repo.visibility || "public").trim().toLowerCase() !== "public"}
                         checked={settingsForm.visibility === "public" || settingsForm.visibility === "Public"}
                         onChange={(e) => setSettingsForm({ ...settingsForm, visibility: e.target.value })}
                       />
@@ -1175,6 +1176,11 @@ function RepoDetail() {
                       <span><strong>Team Member</strong> - Restricted to members of a selected team group.</span>
                     </label>
                   </div>
+                  {String(repo.visibility || "public").trim().toLowerCase() !== "public" && (
+                    <p style={{ margin: "10px 0 0", color: "var(--repo-text-soft)", fontSize: "0.82rem" }}>
+                      Public visibility is locked after this repository has been made private or team-only.
+                    </p>
+                  )}
                 </div>
 
                 {settingsForm.visibility === "Team Member" && (

@@ -1,6 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const Group = require("../models/Group");
+const Notification = require("../models/Notification");
 const Repo = require("../models/Repo");
 const User = require("../models/User");
 const { optionalAuth, requireAuth } = require("../middleware/auth");
@@ -11,63 +12,6 @@ const router = express.Router();
 function generateUniqueGroupId() {
   const hex = crypto.randomBytes(3).toString("hex").toUpperCase();
   return `GRP-${hex}`;
-}
-
-function trimTrailingSlash(value) {
-  return String(value || "").replace(/\/+$/, "");
-}
-
-// Keep only the origin of a configured base URL, so values such as
-// "https://site.com/teams" still produce "https://site.com/teams/GRP-1234"
-function toOrigin(value, fallback) {
-  let raw = trimTrailingSlash(value);
-  if (!raw) return fallback;
-  if (!/^https?:\/\//i.test(raw)) raw = `https://${raw.replace(/^\/+/, "")}`;
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return fallback;
-  }
-}
-
-// Public base URL of the frontend site (used to build the links inside invitation emails)
-function getFrontendUrl(req) {
-  const fromEnv = toOrigin(process.env.FRONTEND_URL, "");
-  if (fromEnv) return fromEnv;
-
-  const origin = toOrigin(req.get("origin") || req.get("referer") || "", "");
-  if (origin) return origin;
-
-  return "http://localhost:5173";
-}
-
-// Public base URL of this API (email clients hit these links directly)
-function getApiUrl(req) {
-  const fromEnv = toOrigin(process.env.SERVER_URL, "");
-  if (fromEnv) return fromEnv;
-
-  const forwardedProto = (req.get("x-forwarded-proto") || "").split(",")[0].trim();
-  const protocol = forwardedProto || req.protocol || "http";
-  return trimTrailingSlash(`${protocol}://${req.get("host")}`);
-}
-
-// Links used by the team verification email.
-//   acceptUrl / rejectUrl -> this API, which records the decision and redirects
-//                            the member straight to their team page
-//   teamUrl                -> the member's team page on the frontend
-//   pageUrl                -> fallback page when the email buttons are not clickable
-function buildVerificationLinks(req, group, inviteToken) {
-  const frontendUrl = getFrontendUrl(req);
-  const apiUrl = getApiUrl(req);
-  const query = `token=${encodeURIComponent(inviteToken)}`;
-  const groupId = group && group._id ? group._id.toString() : "";
-
-  return {
-    acceptUrl: `${apiUrl}/api/groups/verification?${query}&decision=accept`,
-    rejectUrl: `${apiUrl}/api/groups/verification?${query}&decision=reject`,
-    teamUrl: groupId ? `${frontendUrl}/teams/${groupId}` : `${frontendUrl}/teams`,
-    pageUrl: `${frontendUrl}/accept-invite?${query}`,
-  };
 }
 
 // The team owner (creator) is the only account allowed to manage memberships
@@ -116,15 +60,10 @@ function ownerOnlyMessage(group, action, requester) {
   return `Only the team owner ${owner} can ${action}. You are signed in as ${who}. Sign in as the team owner and try again.`;
 }
 
-// Strip admin-only and internal fields (unique groupId, invite tokens) before sending a group to the client
+// Strip the admin-only unique groupId before sending a group to the client
 function sanitizeGroup(group) {
   const obj = group.toObject ? group.toObject() : { ...group };
   delete obj.groupId;
-  obj.members = (obj.members || []).map((m) => {
-    const member = m.toObject ? m.toObject() : { ...m };
-    delete member.inviteToken;
-    return member;
-  });
   return obj;
 }
 
@@ -160,12 +99,7 @@ router.get("/my-groups", async (req, res) => {
         delete obj.groupId; // Only visible to admin
 
         const requesterIsCreator = isCreatorOf(obj);
-        obj.members = (obj.members || [])
-          .filter((m) => requesterIsCreator || m.status !== "declined")
-          .map((m) => {
-            delete m.inviteToken;
-            return m;
-          });
+        obj.members = (obj.members || []).filter((m) => requesterIsCreator || m.status !== "declined");
         return obj;
       })
       // A group the requester only declined must not show up in their team list
@@ -288,143 +222,16 @@ router.delete("/:id", optionalAuth, requireAuth, async (req, res) => {
   }
 });
 
-const { sendTeamVerificationEmail } = require("../mailer");
 
-// Apply a team verification decision ("accept" | "reject") coming from the email buttons
-async function verifyInvitation(token, decision) {
-  const inviteToken = (token || "").trim();
-  const isReject = decision === "reject" || decision === "rejected" || decision === "decline" || decision === "declined";
-  const finalStatus = isReject ? "declined" : "accepted";
-
-  if (!inviteToken) {
-    return { ok: false, status: 400, message: "Invitation token is required." };
-  }
-
-  const group = await Group.findOne({ "members.inviteToken": inviteToken });
-  if (!group) {
-    return { ok: false, status: 404, message: "This verification link is invalid or has already been used." };
-  }
-
-  const member = group.members.find((m) => m.inviteToken === inviteToken);
-  if (!member) {
-    return { ok: false, status: 404, message: "This verification link no longer matches a pending member." };
-  }
-
-  member.status = finalStatus;
-  member.inviteToken = undefined; // one-time link
-  member.respondedAt = new Date();
-  if (finalStatus === "accepted") member.verifiedAt = new Date();
-  else member.verifiedAt = undefined;
-  await group.save();
-
-  console.log(
-    `${finalStatus === "accepted" ? "✅" : "❌"} Team verification: ${member.username} ${finalStatus} "${group.name}"`
-  );
-
-  return {
-    ok: true,
-    status: 200,
-    decision: finalStatus,
-    memberUsername: member.username,
-    memberEmail: member.email || "",
-    groupId: group._id.toString(),
-    groupName: group.name,
-    ownerName: group.creator,
-    message:
-      finalStatus === "accepted"
-        ? `Verification accepted. You are now a member of the team "${group.name}".`
-        : `Verification rejected. You did not join the team "${group.name}".`,
-  };
-}
-
-// GET /api/groups/verification - One-click handler behind the ACCEPT / REJECT email buttons.
-// Accepting redirects the member straight to their own team page.
-router.get("/verification", async (req, res) => {
-  const frontendUrl = getFrontendUrl(req);
-  const { token, decision } = req.query;
-
-  const redirectToError = (message) =>
-    res.redirect(
-      `${frontendUrl}/accept-invite?token=${encodeURIComponent((token || "").trim())}&status=error&message=${encodeURIComponent(message)}`
-    );
-
-  try {
-    const result = await verifyInvitation(token, decision);
-
-    if (!result.ok) {
-      return redirectToError(result.message);
-    }
-
-    const params = new URLSearchParams({
-      invite: result.decision === "accepted" ? "accepted" : "rejected",
-      member: result.memberUsername,
-      group: result.groupName,
-    });
-
-    if (result.decision === "accepted") {
-      // Accepted -> the member's own team page
-      return res.redirect(`${frontendUrl}/teams/${result.groupId}?${params.toString()}`);
-    }
-
-    return res.redirect(`${frontendUrl}/teams?${params.toString()}`);
-  } catch (error) {
-    console.error("Error handling team verification:", error);
-    return redirectToError("Error processing the verification: " + error.message);
-  }
-});
-
-// POST /api/groups/accept-invite - Accept a team verification request from the fallback page
-router.post("/accept-invite", async (req, res) => {
-  try {
-    const { token } = req.body || {};
-    const result = await verifyInvitation(token, "accept");
-
-    if (!result.ok) {
-      return res.status(result.status).json({ message: result.message });
-    }
-
-    res.status(200).json({
-      message: result.message,
-      groupName: result.groupName,
-      groupId: result.groupId,
-      username: result.memberUsername,
-    });
-  } catch (error) {
-    console.error("Error accepting team verification:", error);
-    res.status(500).json({ message: "Error accepting verification: " + error.message });
-  }
-});
-
-// POST /api/groups/decline-invite - Reject a team verification request from the fallback page
-router.post("/decline-invite", async (req, res) => {
-  try {
-    const { token } = req.body || {};
-    const result = await verifyInvitation(token, "reject");
-
-    if (!result.ok) {
-      return res.status(result.status).json({ message: result.message });
-    }
-
-    res.status(200).json({
-      message: result.message,
-      groupName: result.groupName,
-      groupId: result.groupId,
-      username: result.memberUsername,
-    });
-  } catch (error) {
-    console.error("Error rejecting team verification:", error);
-    res.status(500).json({ message: "Error rejecting verification: " + error.message });
-  }
-});
-
-// POST /api/groups/:id/members - Team owner adds a member, who then verifies through the email
+// POST /api/groups/:id/members - Team owner invites a member, who accepts it from their
+// own notifications. Nobody is added to the team until that invitation is accepted.
 router.post("/:id/members", async (req, res) => {
   try {
     const { username, email, identifier, role } = req.body;
     const targetInput = (identifier || username || email || "").trim();
 
     if (!targetInput) {
-      return res.status(400).json({ message: "Username or email is required to add a member." });
+      return res.status(400).json({ message: "Username or email is required to invite a member." });
     }
 
     const group = await Group.findById(req.params.id);
@@ -437,100 +244,90 @@ router.post("/:id/members", async (req, res) => {
       return res.status(403).json({ message: ownerOnlyMessage(group, "add members to this team", requester) });
     }
 
-    // Try finding registered user in database by username or email
+    // The invitation is delivered in the recipient's notification centre, so the recipient
+    // must already have an account.
     const escapedInput = targetInput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const foundUser = await User.findOne({
+    const invitee = await User.findOne({
       $or: [
         { username: new RegExp(`^${escapedInput}$`, "i") },
         { gmail: new RegExp(`^${escapedInput}$`, "i") }
       ]
     });
 
-    const finalUsername = foundUser ? foundUser.username : (targetInput.includes("@") ? targetInput.split("@")[0] : targetInput);
-    const finalEmail = foundUser ? foundUser.gmail : (targetInput.includes("@") ? targetInput : (email || ""));
-
-    if (!finalEmail) {
-      return res.status(400).json({
-        message: `No registered email address found for "${targetInput}". Please enter a valid email address (e.g., name@gmail.com) so the verification email can be sent.`
+    if (!invitee) {
+      return res.status(404).json({
+        message: `No registered Gitrepo account matches "${targetInput}". Invitations are delivered in-app, so the person must already have an account.`
       });
     }
 
     if (
-      finalUsername.toLowerCase() === String(group.creator).toLowerCase() ||
-      (group.creatorEmail && finalEmail.toLowerCase() === String(group.creatorEmail).toLowerCase())
+      String(invitee.username).toLowerCase() === String(group.creator).toLowerCase() ||
+      (group.creatorEmail && String(invitee.gmail || "").toLowerCase() === String(group.creatorEmail).toLowerCase())
     ) {
       return res.status(409).json({ message: "The team owner is already a member of this team." });
     }
 
-    // Check if user is already a member
-    const existingMember = group.members.find(
-      (m) => m.username.toLowerCase() === finalUsername.toLowerCase() ||
-             (finalEmail && m.email && m.email.toLowerCase() === finalEmail.toLowerCase())
+    const alreadyMember = (group.members || []).some(
+      (m) =>
+        String(m.username || "").toLowerCase() === String(invitee.username).toLowerCase() ||
+        (Boolean(m.email) && String(m.email).toLowerCase() === String(invitee.gmail || "").toLowerCase())
     );
 
-    const inviteToken = crypto.randomBytes(24).toString("hex");
-    const isResend = Boolean(
-      existingMember && (existingMember.status === "pending" || existingMember.status === "declined")
-    );
-
-    if (existingMember && !isResend) {
-      return res.status(409).json({ message: `User "${finalUsername}" is already a verified member of this team.` });
+    if (alreadyMember) {
+      return res.status(409).json({ message: `User "${invitee.username}" is already a member of this team.` });
     }
 
-    if (isResend) {
-      // Re-send the verification email to a member who is pending or rejected the last one
-      existingMember.inviteToken = inviteToken;
-      existingMember.status = "pending";
-      existingMember.respondedAt = undefined;
-      existingMember.verifiedAt = undefined;
-      existingMember.email = finalEmail;
-      await group.save();
-    } else {
-      group.members.push({
-        username: finalUsername,
-        email: finalEmail,
-        role: role === "creator" ? "creator" : "editor",
-        status: "pending",
-        inviteToken: inviteToken,
-        invitedBy: group.creator,
-        joinedAt: new Date()
+    const openInvitation = await Notification.findOne({
+      receiver_id: invitee._id,
+      project_id: group._id,
+      type: "MEMBER_INVITATION",
+      status: "PENDING"
+    });
+    if (openInvitation) {
+      return res.status(409).json({
+        message: `"${invitee.username}" already has a pending invitation to this team.`
       });
-      await group.save();
     }
 
-    // Send the verification email (ACCEPT / REJECT buttons) from gitrepo02@gmail.com to the member
-    const links = buildVerificationLinks(req, group, inviteToken);
-    const { sent, error } = await sendTeamVerificationEmail({
-      to: finalEmail,
-      memberUsername: finalUsername,
-      teamName: group.name,
-      ownerName: group.creator,
-      ownerEmail: group.creatorEmail || requester.email,
-      acceptUrl: links.acceptUrl,
-      rejectUrl: links.rejectUrl,
-      teamUrl: links.teamUrl,
+    // The notification must point back at the owner account, so resolve the owner from the
+    // group itself (the requester has already been checked as the owner above).
+    const ownerInput = String(group.creator || requester.email || requester.username || "").trim();
+    const ownerEscaped = ownerInput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const sender = await User.findOne({
+      $or: [{ username: new RegExp(`^${ownerEscaped}$`, "i") }, { gmail: new RegExp(`^${ownerEscaped}$`, "i") }]
     });
 
-    if (sent) {
-      console.log(`📧 Verification email -> ${finalEmail} | ACCEPT: ${links.acceptUrl}`);
-      console.log(`📧 Verification email -> ${finalEmail} | REJECT: ${links.rejectUrl}`);
-    } else {
-      console.warn(`Verification email for ${finalEmail} could NOT be sent: ${error}`);
+    if (!sender) {
+      return res.status(409).json({
+        message: "The team owner no longer has a Gitrepo account, so invitations cannot be sent."
+      });
     }
+
+    const notification = await Notification.create({
+      type: "MEMBER_INVITATION",
+      sender_id: sender._id,
+      receiver_id: invitee._id,
+      project_id: group._id,
+      sender_name: group.creator || sender.username || "",
+      project_name: group.name,
+      role: role === "creator" ? "creator" : "editor",
+      status: "PENDING",
+      message: `${group.creator || "A team owner"} invited you to join the team "${group.name}" on Gitrepo. Accept to join the team, or reject to skip it.`,
+      created_at: new Date()
+    });
+
+    console.log(`ðŸ”” Invitation created for ${invitee.username} -> team "${group.name}"`);
 
     res.status(200).json({
-      message: sent
-        ? `Verification email sent to ${finalEmail}. They join the team "${group.name}" by clicking ACCEPT, or are skipped by clicking REJECT.`
-        : `Member added, but the verification email could not be sent (${error}).`,
-      emailSent: sent,
-      emailError: sent ? null : error,
-      resend: isResend,
-      member: { username: finalUsername, email: finalEmail, status: "pending" },
-      group: sanitizeGroup(group),
+      message: `Invitation created for ${invitee.username}. They join the team "${group.name}" by accepting it in their notifications.`,
+      notificationId: String(notification._id),
+      invitationCreated: true,
+      invited: { username: invitee.username, email: invitee.gmail, status: "PENDING" },
+      group: sanitizeGroup(group)
     });
   } catch (error) {
-    console.error("Error adding member to group:", error);
-    res.status(500).json({ message: "Error adding member: " + error.message });
+    console.error("Error inviting member to group:", error);
+    res.status(500).json({ message: "Error inviting member: " + error.message });
   }
 });
 

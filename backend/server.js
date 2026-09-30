@@ -28,7 +28,8 @@ app.get("/", (req, res) => {
       "/api/admin",
       "/api/repos",
       "/api/issues",
-      "/api/groups"
+      "/api/groups",
+      "/api/notifications"
     ]
   });
 });
@@ -52,6 +53,9 @@ app.use("/api/repos", repoRoutes);
 
 const groupRoutes = require("./routes/groups");
 app.use("/api/groups", groupRoutes);
+
+const notificationRoutes = require("./routes/notifications");
+app.use("/api/notifications", notificationRoutes);
 
 const PORT = process.env.PORT || 5000;
 

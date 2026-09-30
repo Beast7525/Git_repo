@@ -14,30 +14,8 @@ const mailTransport = nodemailer.createTransport({
   },
 });
 
-function escapeHtml(value) {
-  return String(value == null ? "" : value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function safeUrl(value, fallback) {
-  try {
-    const url = new URL(String(value));
-    if (url.protocol !== "http:" && url.protocol !== "https:") return fallback;
-    return url.toString();
-  } catch {
-    return fallback;
-  }
-}
-
-// Strip characters that would allow SMTP header injection
-function safeHeader(value) {
-  return String(value == null ? "" : value).replace(/[\r\n]+/g, " ").trim();
-}
-
+// Classify an SMTP failure so transient network errors can be retried while
+// permanent failures (bad credentials, blocked recipients) fail fast.
 function describeMailError(err) {
   if (!err) return "Unknown SMTP error";
   const status = err.responseCode || err.code || "";
@@ -124,135 +102,7 @@ async function sendSuspensionEmail(toEmail, username, reason, durationDays, unti
   }
 }
 
-// Team verification email sent by the team owner when a member is added.
-// Sent from the Gitrepo account (MAIL_USER = gitrepo02@gmail.com) to the invited member.
-async function sendTeamVerificationEmail({
-  to,
-  memberUsername,
-  teamName,
-  ownerName,
-  ownerEmail,
-  acceptUrl,
-  rejectUrl,
-  teamUrl,
-}) {
-  if (!mailUser || !mailPassword) {
-    console.warn("⚠️ Mail credentials not configured. Skipping team verification email.");
-    return { sent: false, error: "MAIL_USER / MAIL_PASSWORD are not set in the backend .env" };
-  }
-
-  if (!to) {
-    return { sent: false, error: "The invited member has no email address" };
-  }
-
-  const safeTeamName = escapeHtml(teamName);
-  const safeMemberName = escapeHtml(memberUsername || "Developer");
-  const safeOwnerName = escapeHtml(ownerName || "The team owner");
-  const acceptLink = safeUrl(acceptUrl, "");
-  const rejectLink = safeUrl(rejectUrl, "");
-  const teamLink = safeUrl(teamUrl, "");
-
-  if (!acceptLink) {
-    return { sent: false, error: "The invitation accept link could not be built" };
-  }
-
-  const subject = `${safeHeader(ownerName || "A team owner")} invited you to join "${safeHeader(teamName)}" - Accept or Reject`;
-
-  const textBody =
-    `Hello ${memberUsername || "Developer"},\n\n` +
-    `${ownerName || "The team owner"} (team owner) added you to the team "${teamName}" on Gitrepo.\n` +
-    `Your membership is pending until you verify it from this email.\n\n` +
-    `ACCEPT the invitation (you are added to the team and taken straight to the team page):\n${acceptUrl}\n\n` +
-    `REJECT the invitation (you stay out of the team):\n${rejectUrl || "(not available)"}\n\n` +
-    (teamUrl ? `Team page:\n${teamUrl}\n\n` : "") +
-    `This one-time link can only be used once.\n\n` +
-    `Sent by Gitrepo Team Verification <${mailUser}>\n` +
-    `${ownerName || "The team owner"}${ownerEmail ? ` (${ownerEmail})` : ""}`;
-
-  const htmlBody = `
-    <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background-color: #0d1711; color: #e7f1e5; border-radius: 12px; border: 1px solid rgba(167, 221, 166, 0.2);">
-      <h2 style="color: #a7dda6; margin: 0 0 4px; font-size: 1.4rem;">Team Verification Request</h2>
-      <p style="margin: 0 0 20px; font-size: 0.8rem; color: #748779; letter-spacing: 0.04em; text-transform: uppercase;">
-        Sent from ${escapeHtml(mailUser)}
-      </p>
-
-      <p style="font-size: 1rem; color: #d0e0d5; margin: 0 0 8px;">Hello <strong>${safeMemberName}</strong>,</p>
-      <p style="color: #9eafa3; line-height: 1.6; margin: 0 0 20px;">
-        <strong>${safeOwnerName}</strong>, the owner of the team
-        <strong style="color: #ffffff;">${safeTeamName}</strong>, has added you as a member on Gitrepo.
-        Confirm your membership below.
-      </p>
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 18px;">
-        <tr>
-          <td align="center" style="padding: 0 0 12px 0;">
-            <a href="${acceptLink}" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 1.05rem; display: inline-block; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-              ACCEPT
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td align="center" style="padding: 0;">
-            ${
-              rejectLink
-                ? `<a href="${rejectLink}" style="background: transparent; color: #f87171; text-decoration: none; padding: 15px 40px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.55); font-weight: bold; font-size: 1.05rem; display: inline-block;">
-              REJECT
-            </a>`
-                : `<span style="color: #748779; font-size: 0.9rem;">REJECT is not available for this invitation.</span>`
-            }
-          </td>
-        </tr>
-      </table>
-
-      <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 12px 14px; border-radius: 4px; margin: 0 0 18px;">
-        <p style="margin: 0; font-size: 0.85rem; color: #d0e0d5; line-height: 1.5;">
-          Clicking <strong style="color: #34d399;">ACCEPT</strong> verifies your membership and opens your team page
-          <strong style="color: #ffffff;">${safeTeamName}</strong> straight away.
-          Clicking <strong style="color: #f87171;">REJECT</strong> removes the request and you will not join the team.
-        </p>
-      </div>
-
-      ${
-        teamLink
-          ? `<p style="text-align: center; margin: 0 0 18px;">
-        <a href="${teamLink}" style="color: #a7dda6; font-size: 0.88rem;">View the team page first</a>
-      </p>`
-          : ""
-      }
-
-      <p style="font-size: 0.78rem; color: #748779; word-break: break-all; line-height: 1.6;">
-        Buttons not working? Copy and paste these links into your browser:<br />
-        <a href="${acceptLink}" style="color: #34d399;">ACCEPT: ${acceptLink}</a><br />
-        ${rejectLink ? `<a href="${rejectLink}" style="color: #f87171;">REJECT: ${rejectLink}</a>` : ""}
-      </p>
-
-      <hr style="border: 0; border-top: 1px solid rgba(167, 221, 166, 0.2); margin: 22px 0 14px;" />
-      <p style="font-size: 0.8rem; color: #748779; margin: 0; line-height: 1.6;">
-        Gitrepo Team Verification &middot; ${escapeHtml(mailUser)}<br />
-        Invited by ${safeOwnerName}${ownerEmail ? ` &lt;${escapeHtml(ownerEmail)}&gt;` : ""}
-      </p>
-    </div>
-  `;
-
-  try {
-    const { ok, error } = await sendWithRetry({
-      from: `Gitrepo Team Verification <${mailUser}>`,
-      to,
-      replyTo: ownerEmail ? safeHeader(ownerEmail) : undefined,
-      subject,
-      text: textBody,
-      html: htmlBody,
-    });
-    if (!ok) return { sent: false, error };
-    console.log(`✉️ Team verification email sent from ${mailUser} to ${to} (team "${teamName}")`);
-    return { sent: true, error: null };
-  } catch (err) {
-    console.error("❌ Failed to send team verification email:", err.message);
-    return { sent: false, error: describeMailError(err) };
-  }
-}
 
 module.exports = {
   sendSuspensionEmail,
-  sendTeamVerificationEmail,
 };
