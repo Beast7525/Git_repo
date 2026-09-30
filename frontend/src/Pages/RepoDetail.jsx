@@ -188,6 +188,7 @@ function RepoDetail() {
   const [fileContent, setFileContent] = useState("");
   const [fileContentLoading, setFileContentLoading] = useState(false);
   const [fileContentError, setFileContentError] = useState("");
+  const [downloadingFile, setDownloadingFile] = useState(false);
 
   // Commit Graph & Revert States
   const [selectedCommit, setSelectedCommit] = useState(null);
@@ -354,6 +355,36 @@ function RepoDetail() {
       setFileContentError("Failed to fetch file content from server.");
     } finally {
       setFileContentLoading(false);
+    }
+  }
+
+  async function handleDownloadPreviewFile() {
+    if (!selectedFileForPreview || fileContentLoading || fileContentError || downloadingFile) return;
+
+    setDownloadingFile(true);
+    try {
+      const filePath = selectedFileForPreview.path || selectedFileForPreview.b2FileName;
+      const response = await apiFetch(
+        `${API_BASE_URL}/api/repos/find/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}/file-download?filePath=${encodeURIComponent(filePath)}`
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "Could not download this file.");
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = (selectedFileForPreview.path || filePath).split(/[\\/]/).filter(Boolean).pop() || "download";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+    } catch (error) {
+      setFileContentError(error.message || "Could not download this file.");
+    } finally {
+      setDownloadingFile(false);
     }
   }
 
@@ -1853,18 +1884,6 @@ function RepoDetail() {
             <div style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: "var(--repo-radius-sm)", overflow: "hidden" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#161b22", padding: "8px 16px", borderBottom: "1px solid #30363d" }}>
                 <span style={{ fontSize: "12px", color: "#8b949e" }}>Raw File Content</span>
-                {fileContent && (
-                  <button
-                    className="gh-btn"
-                    style={{ fontSize: "12px", padding: "3px 8px" }}
-                    onClick={() => {
-                      navigator.clipboard.writeText(fileContent);
-                      alert("File content copied to clipboard!");
-                    }}
-                  >
-                    Copy Raw
-                  </button>
-                )}
               </div>
 
               <div style={{ padding: "16px", maxHeight: "450px", overflowY: "auto", fontFamily: "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace", fontSize: "13px", color: "#e6edf3", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "#0d1117" }}>
@@ -1882,18 +1901,15 @@ function RepoDetail() {
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
-              {selectedFileForPreview.b2Url && (
-                <a
-                  href={selectedFileForPreview.b2Url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="gh-btn gh-btn-green"
-                  style={{ textDecoration: "none" }}
-                >
-                  Open Raw URL
-                </a>
-              )}
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", marginTop: "16px" }}>
+              <button
+                type="button"
+                className="gh-btn gh-btn-green"
+                disabled={fileContentLoading || Boolean(fileContentError) || downloadingFile}
+                onClick={handleDownloadPreviewFile}
+              >
+                {downloadingFile ? "Downloading..." : "Download File"}
+              </button>
               <button
                 type="button"
                 className="gh-btn"

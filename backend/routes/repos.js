@@ -947,6 +947,76 @@ router.get("/find/:owner/:repoName/file-content", async (req, res) => {
   }
 });
 
+// GET /api/repos/find/:owner/:repoName/file-download - Download a repository file without text conversion
+router.get("/find/:owner/:repoName/file-download", requireRepoAccess, async (req, res) => {
+  try {
+    const requestedPath = typeof req.query.filePath === "string" ? req.query.filePath.trim() : "";
+    if (!requestedPath) {
+      return res.status(400).json({ message: "filePath is required" });
+    }
+
+    const repo = req.repo;
+    const targetFile = (repo.files || []).find(
+      (file) => file.path === requestedPath || file.b2FileName === requestedPath
+    );
+    if (!targetFile) {
+      return res.status(404).json({ message: "File not found in repository." });
+    }
+
+    let fileBuffer = null;
+    if (typeof targetFile.content === "string") {
+      fileBuffer = Buffer.from(targetFile.content, "utf8");
+    }
+
+    if (!fileBuffer && targetFile.b2FileName) {
+      try {
+        await authorizeB2();
+        const bucketName = process.env.B2_BUCKET_NAME || "GitRepo";
+        const b2Response = await b2.downloadFileByName({
+          bucketName,
+          fileName: targetFile.b2FileName,
+          responseType: "arraybuffer",
+        });
+        if (b2Response?.data) fileBuffer = Buffer.from(b2Response.data);
+      } catch (b2Error) {
+        console.warn("B2 file download notice:", b2Error.message);
+      }
+    }
+
+    if (!fileBuffer && targetFile.b2Url) {
+      try {
+        const response = await fetch(targetFile.b2Url);
+        if (response.ok) fileBuffer = Buffer.from(await response.arrayBuffer());
+      } catch (downloadError) {
+        console.warn("Public file download notice:", downloadError.message);
+      }
+    }
+
+    if (!fileBuffer && repo.storagePath && targetFile.path) {
+      const basePath = path.resolve(repo.storagePath);
+      const fullPath = path.resolve(basePath, targetFile.path);
+      const relativePath = path.relative(basePath, fullPath);
+      if (relativePath && !relativePath.startsWith(`..${path.sep}`) && relativePath !== ".." && !path.isAbsolute(relativePath)) {
+        try {
+          fileBuffer = await fs.readFile(fullPath);
+        } catch (_) {}
+      }
+    }
+
+    if (!fileBuffer) {
+      return res.status(404).json({ message: "File data is unavailable for download." });
+    }
+
+    const fileName = path.basename(targetFile.path || requestedPath);
+    res.type(targetFile.contentType || "application/octet-stream");
+    res.attachment(fileName);
+    return res.status(200).send(fileBuffer);
+  } catch (error) {
+    console.error("Error downloading repository file:", error);
+    return res.status(500).json({ message: "Error downloading file: " + error.message });
+  }
+});
+
 // PUT /api/repos/find/:owner/:repoName/file-content - Edit file content and commit changes
 router.put("/find/:owner/:repoName/file-content", requireAuth, requireRepoOwner, async (req, res) => {
   try {
