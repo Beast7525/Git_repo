@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams, useParams } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/Teams.css";
 import { useLoading } from "../context/LoadingContext";
@@ -11,12 +11,22 @@ const API_BASE_URL = (
     : "http://localhost:5000")
 ).replace(/\/+$/, "");
 
+function readStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
 export default function Teams() {
   const { startLoading, stopLoading } = useLoading();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { groupId: focusedGroupId } = useParams();
   const [groups, setGroups] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedGroupForMember, setSelectedGroupForMember] = useState(null);
+  const teamCardRefs = useRef({});
 
   // Form States
   const [newGroupForm, setNewGroupForm] = useState({ name: "", description: "" });
@@ -24,42 +34,75 @@ export default function Teams() {
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
-  const inviteResponse = searchParams.get("invite"); // "accepted" | "declined"
-  const inviteGroupName = searchParams.get("group") || "";
+  // Query params produced by the verification email links
+  const verificationResult = searchParams.get("invite"); // "accepted" | "rejected"
+  const verificationTeamName = searchParams.get("group") || "";
+  const invitedMemberName = searchParams.get("member") || "";
 
   // Retrieve logged-in user
-  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const currentUser = readStoredUser();
   const loggedInUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "";
   const loggedInEmail = currentUser.gmail || currentUser.email || "";
+  // A member arriving from the ACCEPT link may not be signed in yet, so fall back to
+  // the username carried in the link in order to render their team page.
+  const lookupUsername = loggedInUsername || invitedMemberName;
+  const lookupEmail = loggedInEmail;
 
   // Load user groups
-  async function loadUserGroups() {
-    if (!loggedInUsername && !loggedInEmail) return;
+  const loadUserGroups = useCallback(async () => {
+    if (!lookupUsername && !lookupEmail) {
+      setGroups([]);
+      return;
+    }
     try {
       startLoading();
       const params = new URLSearchParams();
-      if (loggedInUsername) params.append("username", loggedInUsername);
-      if (loggedInEmail) params.append("email", loggedInEmail);
+      if (lookupUsername) params.append("username", lookupUsername);
+      if (lookupEmail) params.append("email", lookupEmail);
 
       const res = await fetch(`${API_BASE_URL}/api/groups/my-groups?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setGroups(Array.isArray(data) ? data : []);
+      if (!res.ok) {
+        setGroups([]);
+        return;
       }
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+
+      // A deep link such as /teams/<groupId> must always resolve, even for a member
+      // who is not signed in, so pull that single team directly.
+      if (focusedGroupId && !list.some((g) => g._id === focusedGroupId)) {
+        const teamParams = new URLSearchParams();
+        if (lookupUsername) teamParams.append("username", lookupUsername);
+        if (lookupEmail) teamParams.append("email", lookupEmail);
+        const teamRes = await fetch(`${API_BASE_URL}/api/groups/${focusedGroupId}/team?${teamParams.toString()}`);
+        if (teamRes.ok) {
+          const team = await teamRes.json();
+          if (team && team._id) list.unshift(team);
+        }
+      }
+
+      setGroups(list);
     } catch (err) {
       console.error("Failed to load user groups:", err);
     } finally {
       stopLoading();
     }
-  }
+  }, [lookupUsername, lookupEmail, focusedGroupId, startLoading, stopLoading]);
 
   useEffect(() => {
     loadUserGroups();
-  }, [loggedInUsername, loggedInEmail]);
+  }, [loadUserGroups]);
 
-  function dismissInviteResponse() {
+  // Scroll the team the member just accepted into view
+  useEffect(() => {
+    if (!focusedGroupId || groups.length === 0) return;
+    const node = teamCardRefs.current[focusedGroupId];
+    if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusedGroupId, groups]);
+
+  function dismissVerificationResult() {
     const next = new URLSearchParams(searchParams);
-    ["invite", "group", "username", "declinedGroupId"].forEach((key) => next.delete(key));
+    ["invite", "group", "member"].forEach((key) => next.delete(key));
     setSearchParams(next, { replace: true });
   }
 
@@ -95,21 +138,15 @@ export default function Teams() {
     }
   }
 
-  // Add Member Submit
+  // Add Member Submit - the team owner adds a member, who verifies through the email
   async function handleAddMember(e) {
     e.preventDefault();
     if (!selectedGroupForMember) return;
     const rawVal = (newMemberForm.identifier || "").trim();
     if (!rawVal) return;
 
-    let usernameToSend = "";
-    let emailToSend = "";
-    if (rawVal.includes("@")) {
-      emailToSend = rawVal;
-      usernameToSend = rawVal.split("@")[0];
-    } else {
-      usernameToSend = rawVal;
-    }
+    const usernameToSend = rawVal.includes("@") ? "" : rawVal;
+    const emailToSend = rawVal.includes("@") ? rawVal : "";
 
     try {
       startLoading();
@@ -117,16 +154,24 @@ export default function Teams() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          identifier: rawVal,
           username: usernameToSend,
           email: emailToSend,
-          role: newMemberForm.role
+          role: newMemberForm.role,
+          requester: loggedInUsername,
+          requesterEmail: loggedInEmail
         })
       });
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setIsError(false);
-        setMessage(data.message || `Invitation sent to ${rawVal}! They will join the group upon accepting.`);
+        setIsError(!data.emailSent && Boolean(data.emailError));
+        setMessage(
+          data.message ||
+            (data.emailSent
+              ? `Verification email sent to ${rawVal}.`
+              : `Member added, but the verification email could not be sent.`)
+        );
         setNewMemberForm({ identifier: "", role: "editor" });
         setSelectedGroupForMember(null);
         loadUserGroups();
@@ -144,15 +189,18 @@ export default function Teams() {
 
   // Remove Member from Group
   async function handleRemoveMember(groupId, memberId, memberName) {
-    if (!window.confirm(`Are you sure you want to remove "${memberName}" from this group?`)) return;
+    if (!window.confirm(`Are you sure you want to remove "${memberName}" from this team?`)) return;
     try {
       startLoading();
       const res = await fetch(`${API_BASE_URL}/api/groups/${groupId}/members/${memberId}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requester: loggedInUsername, requesterEmail: loggedInEmail })
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
         setIsError(false);
-        setMessage(`Member "${memberName}" removed successfully.`);
+        setMessage(data.message || `Member "${memberName}" removed successfully.`);
         loadUserGroups();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -188,17 +236,21 @@ export default function Teams() {
           </div>
         )}
 
-        {inviteResponse && (
-          <div className={`invite-banner ${inviteResponse === "accepted" ? "agreed" : "disagreed"}`}>
+        {verificationResult && (
+          <div className={`invite-banner ${verificationResult === "accepted" ? "agreed" : "disagreed"}`}>
             <div className="invite-banner-text">
-              <strong>{inviteResponse === "accepted" ? "✓ I Agree — response recorded" : "✕ I Disagree — response recorded"}</strong>
+              <strong>
+                {verificationResult === "accepted"
+                  ? "✓ Verification accepted — welcome to the team"
+                  : "✕ Verification rejected — you did not join the team"}
+              </strong>
               <span>
-                {inviteResponse === "accepted"
-                  ? `You are now an active member of ${inviteGroupName ? `the group "${inviteGroupName}"` : "the group"}.`
-                  : `You did not join ${inviteGroupName ? `the group "${inviteGroupName}"` : "the group"}.`}
+                {verificationResult === "accepted"
+                  ? `You are now a verified member of ${verificationTeamName ? `the team "${verificationTeamName}"` : "this team"}.`
+                  : `${verificationTeamName ? `The team "${verificationTeamName}"` : "This team"} will not be added to your account.`}
               </span>
             </div>
-            <button type="button" className="invite-banner-close" onClick={dismissInviteResponse} aria-label="Dismiss">
+            <button type="button" className="invite-banner-close" onClick={dismissVerificationResult} aria-label="Dismiss">
               &times;
             </button>
           </div>
@@ -207,9 +259,17 @@ export default function Teams() {
         <div className="teams-container">
           {groups.length > 0 ? (
             groups.map((group) => {
-              const isCreator = group.creator && group.creator.toLowerCase() === loggedInUsername.toLowerCase();
+              const isCreator = Boolean(
+                (group.creator && group.creator.toLowerCase() === (lookupUsername || "").toLowerCase()) ||
+                  (loggedInEmail && group.creatorEmail && group.creatorEmail.toLowerCase() === loggedInEmail.toLowerCase())
+              );
+              const isFocused = focusedGroupId === group._id;
               return (
-                <div key={group._id} className="team-card">
+                <div
+                  key={group._id}
+                  ref={(node) => { teamCardRefs.current[group._id] = node; }}
+                  className={`team-card ${isFocused ? "focused" : ""}`}
+                >
                   <div className="team-card-header">
                     <h2 className="team-card-title">{group.name}</h2>
                     {isCreator && <span className="team-creator-badge">Owner (Creator)</span>}
@@ -228,8 +288,12 @@ export default function Teams() {
                         <div key={m._id || idx} className="member-item">
                           <div className="member-info">
                             <span className="member-name">{m.username || m.email}</span>
-                            {isPending && <span className="member-status pending">Awaiting response</span>}
-                            {isDeclined && <span className="member-status declined">Declined</span>}
+                            {m.email && <span className="member-email">{m.email}</span>}
+                            {isPending && <span className="member-status pending">Verification sent</span>}
+                            {isDeclined && <span className="member-status declined">Rejected</span>}
+                            {!isPending && !isDeclined && !isMemberCreator && (
+                              <span className="member-status accepted">Verified</span>
+                            )}
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <span className={`team-role-badge ${isMemberCreator ? 'creator' : 'editor'}`}>
@@ -249,9 +313,9 @@ export default function Teams() {
                                   cursor: "pointer"
                                 }}
                                 onClick={() => handleRemoveMember(group._id, m._id, m.username || m.email)}
-                                title="Remove member or cancel invitation"
+                                title={isPending ? "Cancel the pending verification email" : "Remove member"}
                               >
-                                {isPending ? "Cancel Invite" : "Remove"}
+                                {isPending ? "Cancel Verification" : isDeclined ? "Clear" : "Remove"}
                               </button>
                             )}
                           </div>
@@ -273,18 +337,24 @@ export default function Teams() {
                     </>
                   )}
 
-                  <div className="team-card-actions">
-                    <button
-                      className="btn-add-member"
-                      onClick={() => {
-                        setMessage("");
-                        setIsError(false);
-                        setSelectedGroupForMember(group);
-                      }}
-                    >
-                      + Add Member
-                    </button>
-                  </div>
+                  {isCreator ? (
+                    <div className="team-card-actions">
+                      <button
+                        className="btn-add-member"
+                        onClick={() => {
+                          setMessage("");
+                          setIsError(false);
+                          setSelectedGroupForMember(group);
+                        }}
+                      >
+                        + Add Member
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="team-card-footer-note">
+                      Only the team owner can add or remove members.
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -359,7 +429,8 @@ export default function Teams() {
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, identifier: e.target.value })}
                 />
                 <small style={{ color: "#748779", fontSize: "0.78rem", marginTop: "4px", display: "block" }}>
-                  Provide either the member's registered username or their email address.
+                  Provide either the member's registered username or their email address. A verification email is sent
+                  from gitrepo02@gmail.com with ACCEPT and REJECT buttons.
                 </small>
               </div>
               <div className="teams-form-group">
@@ -373,9 +444,21 @@ export default function Teams() {
                   <option value="creator">Creator / Owner (Full Admin Rights)</option>
                 </select>
               </div>
+              <div className="teams-form-group">
+                <label htmlFor="member-email">Email the verification goes to</label>
+                <input
+                  id="member-email"
+                  type="email"
+                  readOnly
+                  placeholder="Resolved from the username above"
+                  value={
+                    (newMemberForm.identifier || "").includes("@") ? newMemberForm.identifier : "Registered email of that user"
+                  }
+                />
+              </div>
               <div className="teams-modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setSelectedGroupForMember(null)}>Cancel</button>
-                <button type="submit" className="btn-create-team">Add Member</button>
+                <button type="submit" className="btn-create-team">Send Verification Email</button>
               </div>
             </form>
           </div>
