@@ -224,6 +224,36 @@ export default function Teams() {
     }
   }
 
+  async function handleDeleteGroup(group) {
+    const confirmed = window.confirm(
+      `Delete "${group.name}"? This cannot be undone. Its repositories will be kept and detached from the group.`
+    );
+    if (!confirmed) return;
+
+    try {
+      startLoading();
+      const res = await fetch(`${API_BASE_URL}/api/groups/${group._id}`, {
+        method: "DELETE",
+        headers: identityHeaders,
+        body: JSON.stringify({ requester: loggedInUsername, requesterEmail: loggedInEmail })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to delete group.");
+      }
+
+      setGroups((currentGroups) => currentGroups.filter((item) => item._id !== group._id));
+      setIsError(false);
+      setMessage(data.message || `Group "${group.name}" deleted.`);
+    } catch (err) {
+      setIsError(true);
+      setMessage(err.message || "Error deleting group.");
+    } finally {
+      stopLoading();
+    }
+  }
+
   return (
     <main className="teams-page-layout">
       <User_header />
@@ -357,6 +387,13 @@ export default function Teams() {
                         }}
                       >
                         + Add Member
+                      </button>
+                      <button
+                        className="btn-delete-group"
+                        type="button"
+                        onClick={() => handleDeleteGroup(group)}
+                      >
+                        Delete Group
                       </button>
                     </div>
                   ) : (

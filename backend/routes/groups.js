@@ -258,6 +258,32 @@ router.post("/", async (req, res) => {
   }
 });
 
+// DELETE /api/groups/:id - Delete a team group while keeping its repositories
+router.delete("/:id", async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id).catch(() => null);
+    if (!group) {
+      return res.status(404).json({ message: "Team not found or already deleted." });
+    }
+
+    const requester = readRequester(req);
+    if (!isTeamOwner(group, requester.username, requester.email)) {
+      return res.status(403).json({ message: ownerOnlyMessage(group, "delete this team", requester) });
+    }
+
+    await Repo.updateMany(
+      { $or: [{ group: group._id }, { groupId: group.groupId }, { groupName: group.name }] },
+      { $set: { group: null, groupId: "", groupName: "" } }
+    );
+    await Group.deleteOne({ _id: group._id });
+
+    res.status(200).json({ message: `Group "${group.name}" deleted. Its repositories were kept and detached.` });
+  } catch (error) {
+    console.error("Error deleting group:", error);
+    res.status(500).json({ message: "Error deleting group: " + error.message });
+  }
+});
+
 const { sendTeamVerificationEmail } = require("../mailer");
 
 // Apply a team verification decision ("accept" | "reject") coming from the email buttons

@@ -262,6 +262,22 @@
   background: rgba(167, 221, 166, 0.22);
 }
 
+.btn-delete-group {
+  flex: 1;
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-delete-group:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
 /* Modal styling */
 .teams-modal-backdrop {
   position: fixed;
