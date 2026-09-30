@@ -198,10 +198,19 @@ router.get("/", async (req, res) => {
     ];
     if (req.authUser) {
       const ownerRegex = flexibleIdentityRegex(req.authUser.username);
-      if (ownerRegex) visibleToUser.push({ owner: ownerRegex });
       if (req.authUser.gmail) {
         const emailRegex = new RegExp(`^${escapeRegex(req.authUser.gmail)}$`, "i");
-        visibleToUser.push({ ownerEmail: emailRegex }, { owner: emailRegex });
+        visibleToUser.push({ ownerEmail: emailRegex });
+        const legacyOwnerMatches = [{ owner: emailRegex }];
+        if (ownerRegex) legacyOwnerMatches.push({ owner: ownerRegex });
+        visibleToUser.push({
+          $and: [
+            { $or: [{ ownerEmail: { $exists: false } }, { ownerEmail: "" }, { ownerEmail: null }] },
+            { $or: legacyOwnerMatches },
+          ],
+        });
+      } else if (ownerRegex) {
+        visibleToUser.push({ owner: ownerRegex });
       }
     }
 
