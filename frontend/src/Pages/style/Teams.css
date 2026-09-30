@@ -81,6 +81,18 @@
   border-color: rgba(167, 221, 166, 0.35);
 }
 
+/* Team the member just accepted from the verification email */
+.team-card.focused {
+  border-color: rgba(16, 185, 129, 0.6);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18), 0 14px 34px rgba(0, 0, 0, 0.35);
+}
+
+.team-card-footer-note {
+  margin-top: auto;
+  font-size: 0.78rem;
+  color: #748779;
+}
+
 .team-card-header {
   display: flex;
   justify-content: space-between;
@@ -357,6 +369,17 @@
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.4);
   color: #f87171;
+}
+
+.member-status.accepted {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.member-email {
+  font-size: 0.75rem;
+  color: #748779;
 }
 
 .invite-banner {

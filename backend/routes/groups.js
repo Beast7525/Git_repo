@@ -17,14 +17,15 @@ function trimTrailingSlash(value) {
 }
 
 // Keep only the origin of a configured base URL, so values such as
-// "https://site.com/teams" still produce "https://site.com/accept-invite"
+// "https://site.com/teams" still produce "https://site.com/teams/GRP-1234"
 function toOrigin(value, fallback) {
-  const raw = trimTrailingSlash(value);
+  let raw = trimTrailingSlash(value);
   if (!raw) return fallback;
+  if (!/^https?:\/\//i.test(raw)) raw = `https://${raw.replace(/^\/+/, "")}`;
   try {
     return new URL(raw).origin;
   } catch {
-    return raw.replace(/\/[^/]*$/, "");
+    return fallback;
   }
 }
 
@@ -49,15 +50,36 @@ function getApiUrl(req) {
   return trimTrailingSlash(`${protocol}://${req.get("host")}`);
 }
 
-function buildInviteLinks(req, inviteToken) {
+// Links used by the team verification email.
+//   acceptUrl / rejectUrl -> this API, which records the decision and redirects
+//                            the member straight to their team page
+//   teamUrl                -> the member's team page on the frontend
+//   pageUrl                -> fallback page when the email buttons are not clickable
+function buildVerificationLinks(req, group, inviteToken) {
   const frontendUrl = getFrontendUrl(req);
   const apiUrl = getApiUrl(req);
   const query = `token=${encodeURIComponent(inviteToken)}`;
+  const groupId = group && group._id ? group._id.toString() : "";
 
   return {
-    acceptUrl: `${apiUrl}/api/groups/invite-response?${query}&response=accept`,
-    declineUrl: `${apiUrl}/api/groups/invite-response?${query}&response=decline`,
+    acceptUrl: `${apiUrl}/api/groups/verification?${query}&decision=accept`,
+    rejectUrl: `${apiUrl}/api/groups/verification?${query}&decision=reject`,
+    teamUrl: groupId ? `${frontendUrl}/teams/${groupId}` : `${frontendUrl}/teams`,
     pageUrl: `${frontendUrl}/accept-invite?${query}`,
+  };
+}
+
+// The team owner (creator) is the only account allowed to manage memberships
+function isTeamOwner(group, username, email) {
+  const same = (a, b) => Boolean(a) && Boolean(b) && String(a).toLowerCase() === String(b).toLowerCase();
+  return same(group.creator, username) || (Boolean(email) && same(group.creatorEmail, email));
+}
+
+function readRequester(req) {
+  const source = req.body || {};
+  return {
+    username: String(source.requester || source.requesterUsername || source.owner || "").trim(),
+    email: String(source.requesterEmail || source.ownerEmail || "").trim(),
   };
 }
 
@@ -123,6 +145,42 @@ router.get("/my-groups", async (req, res) => {
   }
 });
 
+// GET /api/groups/:id/team - Single team page data, used by the member's team page after ACCEPT
+router.get("/:id/team", async (req, res) => {
+  try {
+    const { username, email } = req.query;
+    const requesterName = typeof username === "string" ? username.trim() : "";
+    const requesterEmail = typeof email === "string" ? email.trim() : "";
+
+    if (!requesterName && !requesterEmail) {
+      return res.status(400).json({ message: "Username or email is required to view a team." });
+    }
+
+    const group = await Group.findById(req.params.id).populate("repositories");
+    if (!group) {
+      return res.status(404).json({ message: "Team not found." });
+    }
+
+    const same = (a, b) => Boolean(a) && Boolean(b) && String(a).toLowerCase() === String(b).toLowerCase();
+    const requesterIsCreator = same(group.creator, requesterName) || same(group.creatorEmail, requesterEmail);
+    const requesterIsMember = group.members.some(
+      (m) => same(m.username, requesterName) || (requesterEmail && same(m.email, requesterEmail))
+    );
+
+    if (!requesterIsCreator && !requesterIsMember) {
+      return res.status(403).json({ message: "You are not a member of this team." });
+    }
+
+    const safe = sanitizeGroup(group);
+    safe.members = (safe.members || []).filter((m) => requesterIsCreator || m.status !== "declined");
+
+    res.status(200).json(safe);
+  } catch (error) {
+    console.error("Error fetching team:", error);
+    res.status(500).json({ message: "Error fetching team: " + error.message });
+  }
+});
+
 // POST /api/groups - Create a new team group
 router.post("/", async (req, res) => {
   try {
@@ -168,12 +226,13 @@ router.post("/", async (req, res) => {
   }
 });
 
-const { sendGroupInvitationEmail } = require("../mailer");
+const { sendTeamVerificationEmail } = require("../mailer");
 
-// Apply an invitation response ("accept" | "decline") to a pending member
-async function respondToInvitation(token, response) {
+// Apply a team verification decision ("accept" | "reject") coming from the email buttons
+async function verifyInvitation(token, decision) {
   const inviteToken = (token || "").trim();
-  const decision = response === "decline" || response === "declined" ? "declined" : "accepted";
+  const isReject = decision === "reject" || decision === "rejected" || decision === "decline" || decision === "declined";
+  const finalStatus = isReject ? "declined" : "accepted";
 
   if (!inviteToken) {
     return { ok: false, status: 400, message: "Invitation token is required." };
@@ -181,70 +240,82 @@ async function respondToInvitation(token, response) {
 
   const group = await Group.findOne({ "members.inviteToken": inviteToken });
   if (!group) {
-    return { ok: false, status: 404, message: "Invalid or expired invitation token." };
+    return { ok: false, status: 404, message: "This verification link is invalid or has already been used." };
   }
 
   const member = group.members.find((m) => m.inviteToken === inviteToken);
   if (!member) {
-    return { ok: false, status: 404, message: "Invitation member record not found." };
+    return { ok: false, status: 404, message: "This verification link no longer matches a pending member." };
   }
 
-  const isDecline = decision === "declined";
-  member.status = decision;
-  member.inviteToken = undefined;
+  member.status = finalStatus;
+  member.inviteToken = undefined; // one-time link
   member.respondedAt = new Date();
+  if (finalStatus === "accepted") member.verifiedAt = new Date();
+  else member.verifiedAt = undefined;
   await group.save();
+
+  console.log(
+    `${finalStatus === "accepted" ? "✅" : "❌"} Team verification: ${member.username} ${finalStatus} "${group.name}"`
+  );
 
   return {
     ok: true,
     status: 200,
-    decision,
+    decision: finalStatus,
     memberUsername: member.username,
+    memberEmail: member.email || "",
     groupId: group._id.toString(),
     groupName: group.name,
-    message: isDecline
-      ? `Invitation declined. You did not join the group "${group.name}".`
-      : `Invitation accepted successfully! You are now an active member of group "${group.name}".`,
+    ownerName: group.creator,
+    message:
+      finalStatus === "accepted"
+        ? `Verification accepted. You are now a member of the team "${group.name}".`
+        : `Verification rejected. You did not join the team "${group.name}".`,
   };
 }
 
-// GET /api/groups/invite-response - One-click handler behind the "I Agree" / "I Disagree" email buttons
-router.get("/invite-response", async (req, res) => {
+// GET /api/groups/verification - One-click handler behind the ACCEPT / REJECT email buttons.
+// Accepting redirects the member straight to their own team page.
+router.get("/verification", async (req, res) => {
   const frontendUrl = getFrontendUrl(req);
-  const { token, response } = req.query;
+  const { token, decision } = req.query;
+
+  const redirectToError = (message) =>
+    res.redirect(
+      `${frontendUrl}/accept-invite?token=${encodeURIComponent((token || "").trim())}&status=error&message=${encodeURIComponent(message)}`
+    );
 
   try {
-    const result = await respondToInvitation(token, response);
+    const result = await verifyInvitation(token, decision);
 
     if (!result.ok) {
-      return res.redirect(
-        `${frontendUrl}/accept-invite?token=${encodeURIComponent((token || "").trim())}&status=error&message=${encodeURIComponent(result.message)}`
-      );
+      return redirectToError(result.message);
     }
 
     const params = new URLSearchParams({
-      invite: result.decision,
+      invite: result.decision === "accepted" ? "accepted" : "rejected",
+      member: result.memberUsername,
       group: result.groupName,
-      username: result.memberUsername,
     });
-    if (result.decision === "declined") {
-      params.append("declinedGroupId", result.groupId);
+
+    if (result.decision === "accepted") {
+      // Accepted -> the member's own team page
+      return res.redirect(`${frontendUrl}/teams/${result.groupId}?${params.toString()}`);
     }
 
     return res.redirect(`${frontendUrl}/teams?${params.toString()}`);
   } catch (error) {
-    console.error("Error handling invitation response:", error);
-    return res.redirect(
-      `${frontendUrl}/accept-invite?token=${encodeURIComponent((token || "").trim())}&status=error&message=${encodeURIComponent("Error processing invitation: " + error.message)}`
-    );
+    console.error("Error handling team verification:", error);
+    return redirectToError("Error processing the verification: " + error.message);
   }
 });
 
-// POST /api/groups/accept-invite - Accept team group member invitation via token
+// POST /api/groups/accept-invite - Accept a team verification request from the fallback page
 router.post("/accept-invite", async (req, res) => {
   try {
     const { token } = req.body || {};
-    const result = await respondToInvitation(token, "accept");
+    const result = await verifyInvitation(token, "accept");
 
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
@@ -257,16 +328,16 @@ router.post("/accept-invite", async (req, res) => {
       username: result.memberUsername,
     });
   } catch (error) {
-    console.error("Error accepting group invitation:", error);
-    res.status(500).json({ message: "Error accepting invitation: " + error.message });
+    console.error("Error accepting team verification:", error);
+    res.status(500).json({ message: "Error accepting verification: " + error.message });
   }
 });
 
-// POST /api/groups/decline-invite - Decline team group member invitation via token
+// POST /api/groups/decline-invite - Reject a team verification request from the fallback page
 router.post("/decline-invite", async (req, res) => {
   try {
     const { token } = req.body || {};
-    const result = await respondToInvitation(token, "decline");
+    const result = await verifyInvitation(token, "reject");
 
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
@@ -279,12 +350,12 @@ router.post("/decline-invite", async (req, res) => {
       username: result.memberUsername,
     });
   } catch (error) {
-    console.error("Error declining group invitation:", error);
-    res.status(500).json({ message: "Error declining invitation: " + error.message });
+    console.error("Error rejecting team verification:", error);
+    res.status(500).json({ message: "Error rejecting verification: " + error.message });
   }
 });
 
-// POST /api/groups/:id/members - Add a member to a group (by username or email) and send invitation email
+// POST /api/groups/:id/members - Team owner adds a member, who then verifies through the email
 router.post("/:id/members", async (req, res) => {
   try {
     const { username, email, identifier, role } = req.body;
@@ -296,7 +367,12 @@ router.post("/:id/members", async (req, res) => {
 
     const group = await Group.findById(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found." });
+      return res.status(404).json({ message: "Team not found." });
+    }
+
+    const requester = readRequester(req);
+    if (!isTeamOwner(group, requester.username, requester.email)) {
+      return res.status(403).json({ message: "Only the team owner can add members to this team." });
     }
 
     // Try finding registered user in database by username or email
@@ -313,8 +389,15 @@ router.post("/:id/members", async (req, res) => {
 
     if (!finalEmail) {
       return res.status(400).json({
-        message: `No registered email address found for "${targetInput}". Please enter a valid email address (e.g., name@gmail.com) so the invitation email can be sent.`
+        message: `No registered email address found for "${targetInput}". Please enter a valid email address (e.g., name@gmail.com) so the verification email can be sent.`
       });
+    }
+
+    if (
+      finalUsername.toLowerCase() === String(group.creator).toLowerCase() ||
+      (group.creatorEmail && finalEmail.toLowerCase() === String(group.creatorEmail).toLowerCase())
+    ) {
+      return res.status(409).json({ message: "The team owner is already a member of this team." });
     }
 
     // Check if user is already a member
@@ -323,77 +406,65 @@ router.post("/:id/members", async (req, res) => {
              (finalEmail && m.email && m.email.toLowerCase() === finalEmail.toLowerCase())
     );
 
-    let inviteToken = crypto.randomBytes(24).toString("hex");
+    const inviteToken = crypto.randomBytes(24).toString("hex");
+    const isResend = Boolean(
+      existingMember && (existingMember.status === "pending" || existingMember.status === "declined")
+    );
 
-    if (existingMember) {
-      if (existingMember.status === "pending" || existingMember.status === "declined") {
-        // Refresh token and resend invitation email (re-inviting a declined member)
-        existingMember.inviteToken = inviteToken;
-        existingMember.status = "pending";
-        existingMember.respondedAt = undefined;
-        if (finalEmail) existingMember.email = finalEmail;
-        await group.save();
-
-        const links = buildInviteLinks(req, inviteToken);
-        const { sent, error } = await sendGroupInvitationEmail(
-          finalEmail, finalUsername, group.name, group.creator, links.acceptUrl, links.declineUrl
-        );
-        const emailStatus = sent ? "sent" : `could not be sent (${error})`;
-
-        const resObj = sanitizeGroup(group);
-
-        return res.status(200).json({
-          message: `Invitation email ${emailStatus} to ${finalEmail || finalUsername}.`,
-          emailSent: sent,
-          emailError: sent ? null : error,
-          group: resObj
-        });
-      }
-
-      return res.status(409).json({ message: `User "${finalUsername}" is already an active member of this group.` });
+    if (existingMember && !isResend) {
+      return res.status(409).json({ message: `User "${finalUsername}" is already a verified member of this team.` });
     }
 
-    const memberRole = role === "creator" ? "creator" : "editor";
+    if (isResend) {
+      // Re-send the verification email to a member who is pending or rejected the last one
+      existingMember.inviteToken = inviteToken;
+      existingMember.status = "pending";
+      existingMember.respondedAt = undefined;
+      existingMember.verifiedAt = undefined;
+      existingMember.email = finalEmail;
+      await group.save();
+    } else {
+      group.members.push({
+        username: finalUsername,
+        email: finalEmail,
+        role: role === "creator" ? "creator" : "editor",
+        status: "pending",
+        inviteToken: inviteToken,
+        invitedBy: group.creator,
+        joinedAt: new Date()
+      });
+      await group.save();
+    }
 
-    group.members.push({
-      username: finalUsername,
-      email: finalEmail,
-      role: memberRole,
-      status: "pending",
-      inviteToken: inviteToken,
-      joinedAt: new Date()
+    // Send the verification email (ACCEPT / REJECT buttons) from gitrepo02@gmail.com to the member
+    const links = buildVerificationLinks(req, group, inviteToken);
+    const { sent, error } = await sendTeamVerificationEmail({
+      to: finalEmail,
+      memberUsername: finalUsername,
+      teamName: group.name,
+      ownerName: group.creator,
+      ownerEmail: group.creatorEmail || requester.email,
+      acceptUrl: links.acceptUrl,
+      rejectUrl: links.rejectUrl,
+      teamUrl: links.teamUrl,
     });
 
-    await group.save();
-
-    // Build the "I Agree" / "I Disagree" links used by the invitation email
-    const links = buildInviteLinks(req, inviteToken);
-    console.log(`🔗 Invitation links for ${finalUsername} (${finalEmail}):`);
-    console.log(`   I Agree   -> ${links.acceptUrl}`);
-    console.log(`   I Disagree-> ${links.declineUrl}`);
-
-    let emailStatus = "queued";
-    let emailError = null;
-    if (finalEmail) {
-      const { sent, error } = await sendGroupInvitationEmail(
-        finalEmail, finalUsername, group.name, group.creator, links.acceptUrl, links.declineUrl
-      );
-      emailStatus = sent ? "sent" : `could not be sent (${error})`;
-      emailError = sent ? null : error;
-      if (!sent) {
-        console.warn(`Invitation email for ${finalEmail} could NOT be sent: ${error}`);
-      }
+    if (sent) {
+      console.log(`📧 Verification email -> ${finalEmail} | ACCEPT: ${links.acceptUrl}`);
+      console.log(`📧 Verification email -> ${finalEmail} | REJECT: ${links.rejectUrl}`);
+    } else {
+      console.warn(`Verification email for ${finalEmail} could NOT be sent: ${error}`);
     }
 
-    const resObj = sanitizeGroup(group);
-
     res.status(200).json({
-      message: emailStatus === "sent"
-        ? `Invitation email sent to ${finalEmail}. They will become an active member upon clicking "I Agree", or be skipped upon clicking "I Disagree".`
-        : `Invitation email ${emailStatus} to ${finalEmail || finalUsername}.`,
-      emailSent: emailStatus === "sent",
-      emailError,
-      group: resObj
+      message: sent
+        ? `Verification email sent to ${finalEmail}. They join the team "${group.name}" by clicking ACCEPT, or are skipped by clicking REJECT.`
+        : `Member added, but the verification email could not be sent (${error}).`,
+      emailSent: sent,
+      emailError: sent ? null : error,
+      resend: isResend,
+      member: { username: finalUsername, email: finalEmail, status: "pending" },
+      group: sanitizeGroup(group),
     });
   } catch (error) {
     console.error("Error adding member to group:", error);
@@ -411,12 +482,17 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
 
     const group = await Group.findById(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found." });
+      return res.status(404).json({ message: "Team not found." });
+    }
+
+    const requester = readRequester(req);
+    if (!isTeamOwner(group, requester.username, requester.email)) {
+      return res.status(403).json({ message: "Only the team owner can change member roles." });
     }
 
     const member = group.members.id(req.params.memberId);
     if (!member) {
-      return res.status(404).json({ message: "Member not found in group." });
+      return res.status(404).json({ message: "Member not found in team." });
     }
 
     member.role = role;
@@ -431,25 +507,32 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
   }
 });
 
-// DELETE /api/groups/:id/members/:memberId - Remove member from group
+// DELETE /api/groups/:id/members/:memberId - Team owner removes a member or cancels a pending verification
 router.delete("/:id/members/:memberId", async (req, res) => {
   try {
     const group = await Group.findById(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found." });
+      return res.status(404).json({ message: "Team not found." });
+    }
+
+    const requester = readRequester(req);
+    if (!isTeamOwner(group, requester.username, requester.email)) {
+      return res.status(403).json({ message: "Only the team owner can remove members." });
     }
 
     const memberIndex = group.members.findIndex((m) => m._id.toString() === req.params.memberId);
     if (memberIndex === -1) {
-      return res.status(404).json({ message: "Member not found in group." });
+      return res.status(404).json({ message: "Member not found in team." });
     }
 
+    const wasPending = group.members[memberIndex].status === "pending";
     group.members.splice(memberIndex, 1);
     await group.save();
 
-    const resObj = sanitizeGroup(group);
-
-    res.status(200).json({ message: "Member removed successfully", group: resObj });
+    res.status(200).json({
+      message: wasPending ? "Pending verification cancelled." : "Member removed successfully.",
+      group: sanitizeGroup(group),
+    });
   } catch (error) {
     console.error("Error removing group member:", error);
     res.status(500).json({ message: "Error removing group member: " + error.message });

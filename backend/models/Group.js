@@ -14,7 +14,9 @@ const memberSchema = new mongoose.Schema({
     default: "accepted"
   },
   inviteToken: { type: String },
+  invitedBy: { type: String, default: "", trim: true }, // team owner who sent the verification email
   respondedAt: { type: Date },
+  verifiedAt: { type: Date }, // set when the member clicks ACCEPT in the verification email
   joinedAt: { type: Date, default: Date.now }
 }, { _id: true });
 

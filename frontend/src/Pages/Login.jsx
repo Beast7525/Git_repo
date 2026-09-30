@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "./Login.css";
 import { isAdminCredentials } from "../auth/adminAuth.js";
 import { useLoading } from "../context/LoadingContext";
@@ -23,6 +23,7 @@ function Login() {
   const [success, setSuccess] = useState("");
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { startLoading, stopLoading, loading } = useLoading();
 
   const toggleMode = (targetLogin) => {
@@ -52,7 +53,7 @@ function Login() {
         localStorage.setItem("user", JSON.stringify(adminUser));
         localStorage.setItem("username", adminUser.username);
         localStorage.setItem("userId", adminUser.id);
-        navigate("/admin");
+        navigate(location.state?.from || "/admin", { replace: true });
         return;
       }
 
@@ -74,7 +75,7 @@ function Login() {
       localStorage.setItem("userId", data.user.id);
 
       const userSlug = (data.user.username || "").trim().replace(/\s+/g, "-").toLowerCase();
-      navigate(`/${userSlug}`);
+      navigate(location.state?.from || `/${userSlug}`, { replace: true });
     } catch (err) {
       setError("Network error: " + err.message);
     } finally {

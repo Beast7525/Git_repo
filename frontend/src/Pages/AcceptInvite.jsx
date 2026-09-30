@@ -19,6 +19,7 @@ export default function AcceptInvite() {
   const [status, setStatus] = useState("idle"); // "idle" | "accepted" | "declined" | "error"
   const [message, setMessage] = useState(errorFromLink);
   const [groupName, setGroupName] = useState("");
+  const [groupId, setGroupId] = useState("");
 
   useEffect(() => {
     if (errorFromLink) {
@@ -29,7 +30,7 @@ export default function AcceptInvite() {
 
     if (!token) {
       setStatus("error");
-      setMessage("No invitation token provided in the URL.");
+      setMessage("No verification token provided in the URL.");
     }
   }, [token, errorFromLink]);
 
@@ -50,14 +51,15 @@ export default function AcceptInvite() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setStatus(decision === "accept" ? "accepted" : "declined");
-        setMessage(data.message || (decision === "accept" ? "Invitation accepted successfully!" : "Invitation declined."));
+        setMessage(data.message || (decision === "accept" ? "Verification accepted." : "Verification rejected."));
         if (data.groupName) setGroupName(data.groupName);
+        if (data.groupId) setGroupId(data.groupId);
       } else {
         setStatus("error");
-        setMessage(data.message || "Failed to verify invitation token.");
+        setMessage(data.message || "Failed to verify this invitation link.");
       }
     } catch (err) {
-      console.error("Invitation response error:", err);
+      console.error("Team verification error:", err);
       setStatus("error");
       setMessage("Connection error: " + err.message);
     } finally {
@@ -65,9 +67,9 @@ export default function AcceptInvite() {
     }
   }
 
-  const groupPageLink = (
-    <Link to="/teams" className="btn-invite-primary">
-      Go to Group Page
+  const teamPageLink = (
+    <Link to={groupId ? `/teams/${groupId}` : "/teams"} className="btn-invite-primary">
+      Go to My Team Page
     </Link>
   );
 
@@ -79,17 +81,17 @@ export default function AcceptInvite() {
           {status === "accepted" && (
             <>
               <div className="invite-response-icon accepted">✓</div>
-              <h2>Invitation Accepted!</h2>
-              {groupName && <p className="invite-response-group">You are now an active member of "{groupName}"</p>}
+              <h2>Verification Accepted</h2>
+              {groupName && <p className="invite-response-group">You are now a member of "{groupName}"</p>}
               <p className="invite-response-text">{message}</p>
-              {groupPageLink}
+              {teamPageLink}
             </>
           )}
 
           {status === "declined" && (
             <>
               <div className="invite-response-icon declined">✕</div>
-              <h2>Invitation Declined</h2>
+              <h2>Verification Rejected</h2>
               {groupName && <p className="invite-response-group">You did not join "{groupName}"</p>}
               <p className="invite-response-text">{message}</p>
               <Link to="/teams" className="btn-invite-secondary">
@@ -101,9 +103,9 @@ export default function AcceptInvite() {
           {status === "idle" && (
             <>
               <div className="invite-response-icon pending">✉️</div>
-              <h2>Team Group Invitation</h2>
+              <h2>Team Verification Request</h2>
               <p className="invite-response-text">
-                You have been invited to join a team group on Gitrepo. Please confirm your response below.
+                A team owner added you to a team on Gitrepo. Confirm the request to finish joining.
               </p>
 
               <div className="invite-response-actions">
@@ -113,7 +115,7 @@ export default function AcceptInvite() {
                   onClick={() => respond("accept")}
                   disabled={loading || !token}
                 >
-                  {loading ? "Processing..." : "✓ I Agree"}
+                  {loading ? "Processing..." : "ACCEPT"}
                 </button>
                 <button
                   type="button"
@@ -121,12 +123,12 @@ export default function AcceptInvite() {
                   onClick={() => respond("decline")}
                   disabled={loading || !token}
                 >
-                  ✕ I Disagree
+                  REJECT
                 </button>
               </div>
 
               <small className="invite-response-hint">
-                Agreeing makes you an active member of the group. Disagreeing rejects the invitation.
+                ACCEPT verifies your membership and takes you to your team page. REJECT keeps you out of the team.
               </small>
             </>
           )}
@@ -134,7 +136,7 @@ export default function AcceptInvite() {
           {status === "error" && (
             <>
               <div className="invite-response-icon pending">⚠️</div>
-              <h2>Invitation Unavailable</h2>
+              <h2>Verification Link Unavailable</h2>
               <div className="invite-response-error">{message}</div>
               <Link to="/teams" className="btn-invite-secondary">
                 Back to Teams

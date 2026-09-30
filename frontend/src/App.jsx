@@ -18,29 +18,34 @@ import AdminLogin from "./Pages/admin/AdminLogin";
 import Profile from "./Pages/Profile";
 import RepoDetail from "./Pages/RepoDetail";
 import NotFound from "./Pages/NotFound";
+import RequireAuth from "./auth/RequireAuth";
 function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/User" element={<User />} />
-        <Route path="/User_Profile" element={<User_profile />} />
-        <Route path="/dashboard" element={<dashboard />} />
-        <Route path="/User_header" element={<User_header />} />
-        <Route path="/Stars" element={<Stars />} />
-        <Route path="/Issue" element={<Issue />} />
         <Route path="/ForgotPassword" element={<ForgotPassword />} />
-        <Route path="/Repository" element={<Repository />} />
-        <Route path="/teams" element={<Teams />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/All_Repository" element={<All_Repository />} />
 
-        {/* Dynamic Username and Repository Routes */}
-        <Route path="/:username" element={<Profile />} />
-        <Route path="/:username/:repoName" element={<RepoDetail />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/User" element={<User />} />
+          <Route path="/User_Profile" element={<User_profile />} />
+          <Route path="/dashboard" element={<dashboard />} />
+          <Route path="/User_header" element={<User_header />} />
+          <Route path="/Stars" element={<Stars />} />
+          <Route path="/Issue" element={<Issue />} />
+          <Route path="/Repository" element={<Repository />} />
+          <Route path="/teams" element={<Teams />} />
+          <Route path="/teams/:groupId" element={<Teams />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/All_Repository" element={<All_Repository />} />
+
+          {/* Dynamic account and repository routes */}
+          <Route path="/:username" element={<Profile />} />
+          <Route path="/:username/:repoName" element={<RepoDetail />} />
+        </Route>
 
         {/* 404 Not Found Fallback */}
         <Route path="*" element={<NotFound />} />
