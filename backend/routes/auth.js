@@ -411,4 +411,28 @@ router.get("/user/:username", async (req, res) => {
   }
 });
 
+// GET /api/auth/search - Search users by query string
+router.get("/search", async (req, res) => {
+  try {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : (typeof req.query.search === "string" ? req.query.search.trim() : "");
+    if (!q) {
+      return res.status(200).json([]);
+    }
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(escaped, "i");
+    const users = await User.find({
+      $or: [{ username: regex }, { gmail: regex }]
+    })
+      .select("username gmail createdAt")
+      .limit(10)
+      .lean();
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error searching users:", error);
+    res.status(500).json({ message: "Server error searching users: " + error.message });
+  }
+});
+
 module.exports = router;
+

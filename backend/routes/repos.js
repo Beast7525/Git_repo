@@ -337,10 +337,23 @@ router.get("/", async (req, res) => {
       if (Object.keys(filter).length && ownTeamConditions.length) {
         filter = { $or: [...(filter.$or || []), ...ownTeamConditions] };
       }
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : (typeof req.query.q === "string" ? req.query.q.trim() : "");
+    const accessFilter = { $or: visibleToUser };
+    let combinedFilter = Object.keys(filter).length ? { $and: [filter, accessFilter] } : accessFilter;
+
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), "i");
+      const searchCondition = {
+        $or: [
+          { name: searchRegex },
+          { repositoryName: searchRegex },
+          { description: searchRegex },
+          { owner: searchRegex }
+        ]
+      };
+      combinedFilter = { $and: [combinedFilter, searchCondition] };
     }
 
-    const accessFilter = { $or: visibleToUser };
-    const combinedFilter = Object.keys(filter).length ? { $and: [filter, accessFilter] } : accessFilter;
     const repos = await Repo.find(combinedFilter).sort({ createdAt: -1 });
     res.status(200).json(repos);
   } catch (error) {

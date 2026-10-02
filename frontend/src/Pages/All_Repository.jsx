@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import User_header from "./User_header";
 import "./style/User.css";
 import { useLoading } from "../context/LoadingContext";
@@ -14,9 +14,13 @@ const API_BASE_URL = (
 
 function All_Repository() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { username: paramUsername } = useParams();
   const { startLoading, stopLoading } = useLoading();
   const [repos, setRepos] = useState([]);
+
+  const searchParams = new URLSearchParams(location.search);
+  const searchQueryParam = searchParams.get("search");
 
   useEffect(() => {
     async function loadRepositories() {
@@ -27,7 +31,9 @@ function All_Repository() {
         const ownerEmail = currentUser.gmail || currentUser.email || "";
 
         const params = new URLSearchParams();
-        if (paramUsername) {
+        if (searchQueryParam) {
+          params.append("search", searchQueryParam);
+        } else if (paramUsername) {
           params.append("owner", paramUsername);
         } else {
           if (ownerEmail) params.append("ownerEmail", ownerEmail);
@@ -37,7 +43,7 @@ function All_Repository() {
         let response = await apiFetch(`${API_BASE_URL}/api/repos?${params.toString()}`);
         if (response.ok) {
           let data = await response.json();
-          if (!Array.isArray(data) || data.length === 0) {
+          if (!Array.isArray(data) || (data.length === 0 && !searchQueryParam)) {
             const fallbackRes = await apiFetch(`${API_BASE_URL}/api/repos`);
             if (fallbackRes.ok) data = await fallbackRes.json();
           }
@@ -51,7 +57,7 @@ function All_Repository() {
     }
 
     loadRepositories();
-  }, [paramUsername]);
+  }, [paramUsername, searchQueryParam]);
 
   return (
     <main className="app all-repository-page">
@@ -59,9 +65,13 @@ function All_Repository() {
       <section className="repository-panel all-repository-panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">YOUR REPOSITORIES ({repos.length})</p>
-            <h1>All repositories</h1>
-            <p className="welcome-copy">Showing all repositories owned by your logged-in account.</p>
+            <p className="eyebrow">{searchQueryParam ? `SEARCH RESULTS (${repos.length})` : `YOUR REPOSITORIES (${repos.length})`}</p>
+            <h1>{searchQueryParam ? `Search results for "${searchQueryParam}"` : "All repositories"}</h1>
+            <p className="welcome-copy">
+              {searchQueryParam
+                ? `Showing repositories matching "${searchQueryParam}".`
+                : "Showing all repositories owned by your logged-in account."}
+            </p>
           </div>
           <button className="new-repository" type="button" onClick={() => navigate("/Repository")}>
             <span aria-hidden="true">+</span> New repository
