@@ -3,7 +3,7 @@ require("../net-setup").preferIpv4();
 const User = require("../models/User");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
-const { createAuthToken } = require("../middleware/auth");
+const { createAuthToken, optionalAuth, requireAuth } = require("../middleware/auth");
 const router = express.Router();
 
 const hashValue = (value) => crypto.createHash("sha256").update(value).digest("hex");
@@ -431,6 +431,44 @@ router.get("/search", async (req, res) => {
   } catch (error) {
     console.error("Error searching users:", error);
     res.status(500).json({ message: "Server error searching users: " + error.message });
+  }
+});
+
+// GET /api/auth/netlify-token
+router.get("/netlify-token", optionalAuth, requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.authUser._id).select("netlifyToken");
+    const rawToken = user?.netlifyToken || "";
+    const hasToken = rawToken.trim().length > 0;
+    const maskedToken = hasToken ? `${rawToken.substring(0, 4)}...${rawToken.substring(rawToken.length - 4)}` : "";
+
+    res.status(200).json({
+      hasToken,
+      tokenMasked: maskedToken,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error fetching Netlify token settings: " + error.message });
+  }
+});
+
+// PUT /api/auth/netlify-token
+router.put("/netlify-token", optionalAuth, requireAuth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    const netlifyToken = typeof token === "string" ? token.trim() : "";
+
+    await User.findByIdAndUpdate(req.authUser._id, { netlifyToken });
+
+    const hasToken = netlifyToken.length > 0;
+    const maskedToken = hasToken ? `${netlifyToken.substring(0, 4)}...${netlifyToken.substring(netlifyToken.length - 4)}` : "";
+
+    res.status(200).json({
+      message: hasToken ? "Netlify Personal Access Token saved successfully." : "Netlify token removed.",
+      hasToken,
+      tokenMasked: maskedToken,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error updating Netlify token: " + error.message });
   }
 });
 

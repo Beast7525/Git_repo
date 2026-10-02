@@ -2607,8 +2607,40 @@ function RepoDetail() {
             </select>
 
             {deployErrorMessage && (
-              <div style={{ color: "#f85149", fontSize: "13px", marginBottom: "14px", fontWeight: 600 }}>
-                {deployErrorMessage}
+              <div style={{
+                color: "#f85149",
+                fontSize: "13px",
+                marginBottom: "14px",
+                fontWeight: 600,
+                background: "rgba(239, 68, 68, 0.12)",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(239, 68, 68, 0.3)"
+              }}>
+                <div>{deployErrorMessage}</div>
+                {/Token|Netlify/i.test(deployErrorMessage) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const localUser = JSON.parse(localStorage.getItem("user") || "{}");
+                      const userSlug = localStorage.getItem("username") || localUser.username || "profile";
+                      navigate(`/${userSlug}`);
+                    }}
+                    style={{
+                      marginTop: "8px",
+                      background: "#818cf8",
+                      color: "#fff",
+                      border: "none",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    ⚙️ Open Profile Settings to add Netlify Token
+                  </button>
+                )}
               </div>
             )}
 

@@ -42,6 +42,16 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(403).json({ message: "You are not authorized to deploy this repository." });
     }
 
+    // Check if user has configured their Netlify Access Token
+    const User = require("../models/User");
+    const currentUser = await User.findById(req.authUser._id).select("netlifyToken");
+    if (!currentUser?.netlifyToken || !currentUser.netlifyToken.trim()) {
+      return res.status(400).json({
+        message: "Please add your Netlify Personal Access Token in your Profile Settings before deploying.",
+        needsNetlifyToken: true,
+      });
+    }
+
     const newDeployment = new Deployment({
       repositoryId: repo._id,
       userId: req.authUser._id,

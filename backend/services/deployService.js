@@ -6,6 +6,7 @@ const { exec } = require("child_process");
 const archiver = require("archiver");
 const Deployment = require("../models/Deployment");
 const Repo = require("../models/Repo");
+const User = require("../models/User");
 const { b2, authorizeB2 } = require("../backblaze");
 
 function execPromise(command, options = {}) {
@@ -193,18 +194,18 @@ async function detectAndBuildProject(targetDir, appendLog) {
   return { buildCommand, outputDirectory: detectedOutDir };
 }
 
-// Deploy output directory to Netlify using Netlify REST API
-async function deployToNetlify(sourceDir, siteId, appendLog) {
-  const token = process.env.NETLIFY_AUTH_TOKEN;
+// Deploy output directory to Netlify using user's Netlify REST API Personal Access Token
+async function deployToNetlify(sourceDir, siteId, userToken, appendLog) {
+  const token = typeof userToken === "string" ? userToken.trim() : "";
   if (!token) {
-    throw new Error("NETLIFY_AUTH_TOKEN is not configured in backend environment. Set NETLIFY_AUTH_TOKEN in backend/.env");
+    throw new Error("Netlify Access Token missing. Please save your Netlify Access Token in Profile settings before deploying.");
   }
 
   let targetSiteId = siteId;
 
   // Create Netlify site if siteId does not exist yet
   if (!targetSiteId) {
-    appendLog("Creating new site on Netlify...");
+    appendLog("Creating new site on Netlify account...");
     const siteName = `gitrepo-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
     const createResp = await fetch("https://api.netlify.com/api/v1/sites", {
       method: "POST",
@@ -217,7 +218,7 @@ async function deployToNetlify(sourceDir, siteId, appendLog) {
 
     if (!createResp.ok) {
       const errText = await createResp.text();
-      throw new Error("Failed to create Netlify site: " + errText);
+      throw new Error("Failed to create Netlify site on user account: " + errText);
     }
 
     const siteData = await createResp.json();
@@ -270,6 +271,13 @@ async function runDeploymentProcess(deploymentId) {
     const repo = await Repo.findById(deployment.repositoryId);
     if (!repo) throw new Error("Repository not found.");
 
+    // Fetch user's Netlify token
+    const user = await User.findById(deployment.userId).select("netlifyToken");
+    const userToken = user?.netlifyToken ? user.netlifyToken.trim() : "";
+    if (!userToken) {
+      throw new Error("No Netlify Personal Access Token found for your account. Please add your Netlify Access Token in Profile Settings before deploying.");
+    }
+
     // Step 1: Downloading
     deployment.status = "downloading";
     await deployment.save();
@@ -290,7 +298,7 @@ async function runDeploymentProcess(deploymentId) {
     deployment.status = "deploying";
     await deployment.save();
     const targetOutputDir = path.join(tempDir, outputDirectory);
-    const { siteId, deploymentUrl } = await deployToNetlify(targetOutputDir, repo.siteId || deployment.siteId, appendLog);
+    const { siteId, deploymentUrl } = await deployToNetlify(targetOutputDir, repo.siteId || deployment.siteId, userToken, appendLog);
 
     // Save siteId to Repo if not present
     if (siteId && !repo.siteId) {

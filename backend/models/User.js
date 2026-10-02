@@ -35,6 +35,7 @@ const userSchema = new mongoose.Schema(
     suspensionReason: { type: String, default: "" },
     suspendedUntil: { type: Date, default: null },
     suspendedAt: { type: Date, default: null },
+    netlifyToken: { type: String, default: "" },
   },
   { timestamps: true }
 );
