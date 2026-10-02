@@ -46,7 +46,10 @@ function User_header() {
           const res = await apiFetch(`${API_BASE_URL}/api/repos?search=${q}`);
           if (res.ok) {
             const data = await res.json();
-            setResults(Array.isArray(data) ? data : []);
+            const publicOnly = Array.isArray(data)
+              ? data.filter((r) => !r.visibility || String(r.visibility).trim().toLowerCase() === "public")
+              : [];
+            setResults(publicOnly);
           }
         }
       } catch (err) {
@@ -193,8 +196,8 @@ function User_header() {
                       <div className="search-item-info">
                         <div className="search-item-title-row">
                           <span className="search-item-title">{r.owner} / {r.name || r.repositoryName}</span>
-                          <span className={`search-badge ${r.visibility === 'private' ? 'private' : 'public'}`}>
-                            {r.visibility || 'public'}
+                          <span className="search-badge public">
+                            Public
                           </span>
                         </div>
                         {r.description && <span className="search-item-sub">{r.description}</span>}
