@@ -15,18 +15,19 @@ function User_header() {
   const navigate = useNavigate();
 
   // Search Bar States
-  const [searchMode, setSearchMode] = useState("user"); // "user" | "repo"
   const [searchQuery, setSearchQuery] = useState("");
-  const [results, setResults] = useState([]);
+  const [userResults, setUserResults] = useState([]);
+  const [repoResults, setRepoResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const searchRef = useRef(null);
 
-  // Debounced Search Request
+  // Debounced Unified Search Request
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (!trimmed) {
-      setResults([]);
+      setUserResults([]);
+      setRepoResults([]);
       setDropdownOpen(false);
       return;
     }
@@ -36,21 +37,26 @@ function User_header() {
       setDropdownOpen(true);
       try {
         const q = encodeURIComponent(trimmed);
-        if (searchMode === "user") {
-          const res = await apiFetch(`${API_BASE_URL}/api/auth/search?q=${q}`);
-          if (res.ok) {
-            const data = await res.json();
-            setResults(Array.isArray(data) ? data : []);
-          }
+        const [userRes, repoRes] = await Promise.all([
+          apiFetch(`${API_BASE_URL}/api/auth/search?q=${q}`).catch(() => null),
+          apiFetch(`${API_BASE_URL}/api/repos?search=${q}`).catch(() => null),
+        ]);
+
+        if (userRes && userRes.ok) {
+          const userData = await userRes.json();
+          setUserResults(Array.isArray(userData) ? userData : []);
         } else {
-          const res = await apiFetch(`${API_BASE_URL}/api/repos?search=${q}`);
-          if (res.ok) {
-            const data = await res.json();
-            const publicOnly = Array.isArray(data)
-              ? data.filter((r) => !r.visibility || String(r.visibility).trim().toLowerCase() === "public")
-              : [];
-            setResults(publicOnly);
-          }
+          setUserResults([]);
+        }
+
+        if (repoRes && repoRes.ok) {
+          const repoData = await repoRes.json();
+          const publicOnly = Array.isArray(repoData)
+            ? repoData.filter((r) => !r.visibility || String(r.visibility).trim().toLowerCase() === "public")
+            : [];
+          setRepoResults(publicOnly);
+        } else {
+          setRepoResults([]);
         }
       } catch (err) {
         console.error("Header search error:", err);
@@ -60,7 +66,7 @@ function User_header() {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, searchMode]);
+  }, [searchQuery]);
 
   // Close search dropdown on click outside
   useEffect(() => {
@@ -79,11 +85,14 @@ function User_header() {
     if (!trimmed) return;
 
     setDropdownOpen(false);
-    if (searchMode === "user") {
-      navigate(`/${trimmed}`);
-    } else {
-      navigate(`/All_Repository?search=${encodeURIComponent(trimmed)}`);
+    if (trimmed.includes("/")) {
+      const parts = trimmed.split("/").filter(Boolean);
+      if (parts.length >= 2) {
+        navigate(`/${parts[0]}/${parts[1]}`);
+        return;
+      }
     }
+    navigate(`/All_Repository?search=${encodeURIComponent(trimmed)}`);
   };
 
   const handleSelectUser = (userTarget) => {
@@ -112,34 +121,15 @@ function User_header() {
         <span className="header-username" style={{ cursor: "pointer" }} onClick={() => navigate(`/${username}`)}>{username}</span>
       </div>
 
-      {/* Header Search Bar */}
+      {/* Normal Standard Search Bar */}
       <div className="header-search-box" ref={searchRef}>
-        <div className="search-mode-toggle">
-          <button
-            type="button"
-            className={`search-mode-btn ${searchMode === 'user' ? 'active' : ''}`}
-            onClick={() => { setSearchMode('user'); setResults([]); setDropdownOpen(false); }}
-            title="Search Users"
-          >
-            <span>👤</span> User
-          </button>
-          <button
-            type="button"
-            className={`search-mode-btn ${searchMode === 'repo' ? 'active' : ''}`}
-            onClick={() => { setSearchMode('repo'); setResults([]); setDropdownOpen(false); }}
-            title="Search Repositories"
-          >
-            <span>📁</span> Repo
-          </button>
-        </div>
-
         <form className="header-search-form" onSubmit={handleSearchSubmit}>
           <div className="search-input-wrapper">
             <span className="search-icon">🔍</span>
             <input
               type="text"
               className="header-search-input"
-              placeholder={searchMode === 'user' ? "Search users..." : "Search repositories..."}
+              placeholder="Search user or repository..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => { if (searchQuery.trim()) setDropdownOpen(true); }}
@@ -148,7 +138,7 @@ function User_header() {
               <button
                 type="button"
                 className="search-clear-btn"
-                onClick={() => { setSearchQuery(''); setResults([]); setDropdownOpen(false); }}
+                onClick={() => { setSearchQuery(''); setUserResults([]); setRepoResults([]); setDropdownOpen(false); }}
                 title="Clear"
               >
                 ✕
@@ -157,60 +147,64 @@ function User_header() {
           </div>
         </form>
 
-        {/* Live Search Dropdown */}
+        {/* Live Search Results Dropdown */}
         {dropdownOpen && (
           <div className="search-results-dropdown">
             {loading ? (
-              <div className="search-status">Searching {searchMode === 'user' ? 'users' : 'repositories'}...</div>
-            ) : results.length > 0 ? (
+              <div className="search-status">Searching...</div>
+            ) : (userResults.length > 0 || repoResults.length > 0) ? (
               <div className="search-results-list">
-                <div className="search-results-header">
-                  Matching {searchMode === 'user' ? 'Users' : 'Repositories'}
-                </div>
-                {searchMode === 'user' ? (
-                  results.map((u) => (
-                    <div
-                      key={u._id || u.username}
-                      className="search-result-item"
-                      onClick={() => handleSelectUser(u.username)}
-                    >
-                      <div className="user-avatar-circle">
-                        {(u.username || 'U').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="search-item-info">
-                        <span className="search-item-title">@{u.username}</span>
-                        {u.gmail && <span className="search-item-sub">{u.gmail}</span>}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  results.map((r) => (
-                    <div
-                      key={r._id || `${r.owner}/${r.name}`}
-                      className="search-result-item"
-                      onClick={() => handleSelectRepo(r.owner, r.name || r.repositoryName)}
-                    >
-                      <div className="repo-avatar-circle">
-                        📁
-                      </div>
-                      <div className="search-item-info">
-                        <div className="search-item-title-row">
-                          <span className="search-item-title">{r.owner} / {r.name || r.repositoryName}</span>
-                          <span className="search-badge public">
-                            Public
-                          </span>
+                {/* Users Section */}
+                {userResults.length > 0 && (
+                  <>
+                    <div className="search-results-header">Users</div>
+                    {userResults.map((u) => (
+                      <div
+                        key={u._id || u.username}
+                        className="search-result-item"
+                        onClick={() => handleSelectUser(u.username)}
+                      >
+                        <div className="user-avatar-circle">
+                          {(u.username || 'U').slice(0, 2).toUpperCase()}
                         </div>
-                        {r.description && <span className="search-item-sub">{r.description}</span>}
+                        <div className="search-item-info">
+                          <span className="search-item-title">@{u.username}</span>
+                          {u.gmail && <span className="search-item-sub">{u.gmail}</span>}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </>
                 )}
+
+                {/* Repositories Section */}
+                {repoResults.length > 0 && (
+                  <>
+                    <div className="search-results-header">Public Repositories</div>
+                    {repoResults.map((r) => (
+                      <div
+                        key={r._id || `${r.owner}/${r.name}`}
+                        className="search-result-item"
+                        onClick={() => handleSelectRepo(r.owner, r.name || r.repositoryName)}
+                      >
+                        <div className="repo-avatar-circle">📁</div>
+                        <div className="search-item-info">
+                          <div className="search-item-title-row">
+                            <span className="search-item-title">{r.owner} / {r.name || r.repositoryName}</span>
+                            <span className="search-badge public">Public</span>
+                          </div>
+                          {r.description && <span className="search-item-sub">{r.description}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
                 <div className="search-footer-action" onClick={handleSearchSubmit}>
                   View all results for "{searchQuery}"
                 </div>
               </div>
             ) : searchQuery.trim() ? (
-              <div className="search-status">No matching {searchMode === 'user' ? 'users' : 'repositories'} found</div>
+              <div className="search-status">No matching users or repositories found</div>
             ) : null}
           </div>
         )}
