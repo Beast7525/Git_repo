@@ -57,6 +57,9 @@ app.use("/api/groups", groupRoutes);
 const notificationRoutes = require("./routes/notifications");
 app.use("/api/notifications", notificationRoutes);
 
+const deployRoutes = require("./routes/deploy");
+app.use("/api/deploy", deployRoutes);
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
