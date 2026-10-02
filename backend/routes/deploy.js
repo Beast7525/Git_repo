@@ -1,10 +1,11 @@
 const express = require("express");
 const Deployment = require("../models/Deployment");
 const Repo = require("../models/Repo");
-const { requireAuth, isPublicRepo, isRepoOwner, isGroupMember } = require("../middleware/auth");
+const { optionalAuth, requireAuth, isPublicRepo, isRepoOwner, isGroupMember } = require("../middleware/auth");
 const { runDeploymentProcess } = require("../services/deployService");
 
 const router = express.Router();
+router.use(optionalAuth);
 
 // Helper to check view/deploy access for a repository
 async function canDeployRepo(repo, user) {
