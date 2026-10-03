@@ -58,7 +58,7 @@ async function optionalAuth(req, res, next) {
 
   if (claims) {
     const user = await User.findById(claims.sub).select("username gmail status netlifyToken");
-    if (user?.status === "Active") req.authUser = user;
+    if (user && (user.status === "Active" || !user.status)) req.authUser = user;
   }
 
   next();
