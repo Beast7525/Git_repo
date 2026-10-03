@@ -21,18 +21,40 @@ function execPromise(command, options = {}) {
   });
 }
 
+// Universal Zip Archiver initialization (supports archiver v7, v8, CJS, and ESM)
+function createZipArchive(options = { zlib: { level: 9 } }) {
+  const archiverModule = require("archiver");
+  if (typeof archiverModule === "function") {
+    return archiverModule("zip", options);
+  }
+  if (typeof archiverModule.create === "function") {
+    return archiverModule.create("zip", options);
+  }
+  if (typeof archiverModule.ZipArchive === "function") {
+    return new archiverModule.ZipArchive(options);
+  }
+  if (typeof archiverModule.default === "function") {
+    return archiverModule.default("zip", options);
+  }
+  throw new Error("Unable to initialize archiver module.");
+}
+
 // Zip directory content into a Buffer
 function zipDirectoryToBuffer(sourceDir) {
   return new Promise((resolve, reject) => {
-    const archive = archiver("zip", { zlib: { level: 9 } });
-    const buffers = [];
+    try {
+      const archive = createZipArchive({ zlib: { level: 9 } });
+      const buffers = [];
 
-    archive.on("data", (data) => buffers.push(data));
-    archive.on("end", () => resolve(Buffer.concat(buffers)));
-    archive.on("error", (err) => reject(err));
+      archive.on("data", (data) => buffers.push(data));
+      archive.on("end", () => resolve(Buffer.concat(buffers)));
+      archive.on("error", (err) => reject(err));
 
-    archive.directory(sourceDir, false);
-    archive.finalize();
+      archive.directory(sourceDir, false);
+      archive.finalize();
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
@@ -333,4 +355,5 @@ module.exports = {
   detectAndBuildProject,
   deployToNetlify,
   runDeploymentProcess,
+  zipDirectoryToBuffer,
 };
