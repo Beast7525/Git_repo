@@ -1,9 +1,9 @@
 const crypto = require("crypto");
 const User = require("../models/User");
 
-const tokenSecret = process.env.AUTH_TOKEN_SECRET || crypto.randomBytes(32).toString("hex");
+const tokenSecret = process.env.AUTH_TOKEN_SECRET || "gitrepo_permanent_fallback_secret_key_2026";
 if (process.env.NODE_ENV === "production" && !process.env.AUTH_TOKEN_SECRET) {
-  console.warn("AUTH_TOKEN_SECRET is not set; login tokens will stop working after a backend restart.");
+  console.warn("AUTH_TOKEN_SECRET is not set; using default fallback secret key.");
 }
 const tokenLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 
