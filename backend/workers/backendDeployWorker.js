@@ -143,12 +143,13 @@ CMD ["npm", "start"]
       appendLog("Health check bypassed for process container mock.");
     }
 
-    // Step 6: Configure Public Deployment URL & Reverse Proxy
+    // Step 6: Configure Public Deployment URL & Host Mapping
     const repoName = repo.name || repo.repositoryName || "my-api";
-    const serverIp = process.env.DEPLOY_SERVER_PUBLIC_IP || "localhost";
-    const deploymentUrl = process.env.DEPLOYMENT_BASE_URL
-      ? `${process.env.DEPLOYMENT_BASE_URL.replace(/\/+$/, "")}/${repoName}`
-      : `http://${serverIp}:${allocatedHostPort}`;
+    const rawPublicHost = process.env.DEPLOY_PUBLIC_HOST ||
+      (process.env.DEPLOY_SERVER_PUBLIC_IP ? `http://${process.env.DEPLOY_SERVER_PUBLIC_IP}` : "http://localhost");
+
+    const cleanHost = rawPublicHost.replace(/\/+$/, "");
+    const deploymentUrl = `${cleanHost}:${allocatedHostPort}`;
 
     proxyService.registerProxyRoute(repoName, allocatedHostPort, deploymentId);
 
