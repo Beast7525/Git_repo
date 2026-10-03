@@ -16,17 +16,15 @@ function User_header() {
 
   // Search Bar States
   const [searchQuery, setSearchQuery] = useState("");
-  const [userResults, setUserResults] = useState([]);
   const [repoResults, setRepoResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const searchRef = useRef(null);
 
-  // Debounced Unified Search Request
+  // Debounced Public Repositories Search Request
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (!trimmed) {
-      setUserResults([]);
       setRepoResults([]);
       setDropdownOpen(false);
       return;
@@ -37,17 +35,7 @@ function User_header() {
       setDropdownOpen(true);
       try {
         const q = encodeURIComponent(trimmed);
-        const [userRes, repoRes] = await Promise.all([
-          apiFetch(`${API_BASE_URL}/api/auth/search?q=${q}`).catch(() => null),
-          apiFetch(`${API_BASE_URL}/api/repos?search=${q}`).catch(() => null),
-        ]);
-
-        if (userRes && userRes.ok) {
-          const userData = await userRes.json();
-          setUserResults(Array.isArray(userData) ? userData : []);
-        } else {
-          setUserResults([]);
-        }
+        const repoRes = await apiFetch(`${API_BASE_URL}/api/repos?search=${q}`).catch(() => null);
 
         if (repoRes && repoRes.ok) {
           const repoData = await repoRes.json();
@@ -95,12 +83,6 @@ function User_header() {
     navigate(`/All_Repository?search=${encodeURIComponent(trimmed)}`);
   };
 
-  const handleSelectUser = (userTarget) => {
-    setDropdownOpen(false);
-    setSearchQuery("");
-    navigate(`/${userTarget}`);
-  };
-
   const handleSelectRepo = (owner, repoName) => {
     setDropdownOpen(false);
     setSearchQuery("");
@@ -121,7 +103,7 @@ function User_header() {
         <span className="header-username" style={{ cursor: "pointer" }} onClick={() => navigate(`/${username}`)}>{username}</span>
       </div>
 
-      {/* Normal Standard Search Bar */}
+      {/* Public Repository Search Bar */}
       <div className="header-search-box" ref={searchRef}>
         <form className="header-search-form" onSubmit={handleSearchSubmit}>
           <div className="search-input-wrapper">
@@ -129,7 +111,7 @@ function User_header() {
             <input
               type="text"
               className="header-search-input"
-              placeholder="Search user or repository..."
+              placeholder="Search public repositories..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => { if (searchQuery.trim()) setDropdownOpen(true); }}
@@ -138,7 +120,7 @@ function User_header() {
               <button
                 type="button"
                 className="search-clear-btn"
-                onClick={() => { setSearchQuery(''); setUserResults([]); setRepoResults([]); setDropdownOpen(false); }}
+                onClick={() => { setSearchQuery(''); setRepoResults([]); setDropdownOpen(false); }}
                 title="Clear"
               >
                 ✕
@@ -151,60 +133,33 @@ function User_header() {
         {dropdownOpen && (
           <div className="search-results-dropdown">
             {loading ? (
-              <div className="search-status">Searching...</div>
-            ) : (userResults.length > 0 || repoResults.length > 0) ? (
+              <div className="search-status">Searching public repositories...</div>
+            ) : repoResults.length > 0 ? (
               <div className="search-results-list">
-                {/* Users Section */}
-                {userResults.length > 0 && (
-                  <>
-                    <div className="search-results-header">Users</div>
-                    {userResults.map((u) => (
-                      <div
-                        key={u._id || u.username}
-                        className="search-result-item"
-                        onClick={() => handleSelectUser(u.username)}
-                      >
-                        <div className="user-avatar-circle">
-                          {(u.username || 'U').slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="search-item-info">
-                          <span className="search-item-title">@{u.username}</span>
-                          {u.gmail && <span className="search-item-sub">{u.gmail}</span>}
-                        </div>
+                <div className="search-results-header">Public Repositories</div>
+                {repoResults.map((r) => (
+                  <div
+                    key={r._id || `${r.owner}/${r.name}`}
+                    className="search-result-item"
+                    onClick={() => handleSelectRepo(r.owner, r.name || r.repositoryName)}
+                  >
+                    <div className="repo-avatar-circle">📁</div>
+                    <div className="search-item-info">
+                      <div className="search-item-title-row">
+                        <span className="search-item-title">{r.owner} / {r.name || r.repositoryName}</span>
+                        <span className="search-badge public">Public</span>
                       </div>
-                    ))}
-                  </>
-                )}
-
-                {/* Repositories Section */}
-                {repoResults.length > 0 && (
-                  <>
-                    <div className="search-results-header">Public Repositories</div>
-                    {repoResults.map((r) => (
-                      <div
-                        key={r._id || `${r.owner}/${r.name}`}
-                        className="search-result-item"
-                        onClick={() => handleSelectRepo(r.owner, r.name || r.repositoryName)}
-                      >
-                        <div className="repo-avatar-circle">📁</div>
-                        <div className="search-item-info">
-                          <div className="search-item-title-row">
-                            <span className="search-item-title">{r.owner} / {r.name || r.repositoryName}</span>
-                            <span className="search-badge public">Public</span>
-                          </div>
-                          {r.description && <span className="search-item-sub">{r.description}</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
+                      {r.description && <span className="search-item-sub">{r.description}</span>}
+                    </div>
+                  </div>
+                ))}
 
                 <div className="search-footer-action" onClick={handleSearchSubmit}>
-                  View all results for "{searchQuery}"
+                  View all public repositories matching "{searchQuery}"
                 </div>
               </div>
             ) : searchQuery.trim() ? (
-              <div className="search-status">No matching users or repositories found</div>
+              <div className="search-status">No public repositories found matching "{searchQuery}"</div>
             ) : null}
           </div>
         )}

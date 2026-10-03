@@ -246,6 +246,8 @@ async function deployToNetlify(sourceDir, siteId, userToken, appendLog) {
     const siteData = await createResp.json();
     targetSiteId = siteData.id || siteData.site_id;
     appendLog(`Netlify site created successfully (ID: ${targetSiteId}).`);
+  } else {
+    appendLog(`Deploying new version to existing Netlify site (ID: ${targetSiteId})...`);
   }
 
   appendLog("Compressing build artifacts...");
@@ -300,6 +302,21 @@ async function runDeploymentProcess(deploymentId) {
       throw new Error("No Netlify Personal Access Token found for your account. Please add your Netlify Access Token in Profile Settings before deploying.");
     }
 
+    // Check if repo already has an existing Netlify siteId
+    let existingSiteId = repo.siteId || deployment.siteId;
+    if (!existingSiteId) {
+      const prev = await Deployment.findOne({
+        repositoryId: repo._id,
+        siteId: { $exists: true, $ne: "" },
+      }).sort({ createdAt: -1 });
+
+      if (prev && prev.siteId) {
+        existingSiteId = prev.siteId;
+        repo.siteId = existingSiteId;
+        await repo.save().catch(() => {});
+      }
+    }
+
     // Step 1: Downloading
     deployment.status = "downloading";
     await deployment.save();
@@ -320,7 +337,7 @@ async function runDeploymentProcess(deploymentId) {
     deployment.status = "deploying";
     await deployment.save();
     const targetOutputDir = path.join(tempDir, outputDirectory);
-    const { siteId, deploymentUrl } = await deployToNetlify(targetOutputDir, repo.siteId || deployment.siteId, userToken, appendLog);
+    const { siteId, deploymentUrl } = await deployToNetlify(targetOutputDir, existingSiteId, userToken, appendLog);
 
     // Save siteId to Repo if not present
     if (siteId && !repo.siteId) {

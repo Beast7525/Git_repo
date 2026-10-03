@@ -32,6 +32,7 @@ const repoSchema = new mongoose.Schema(
     branches: { type: [String], default: ["main"] },
     remoteUrl: { type: String, default: "" },
     storagePath: { type: String, default: "" },
+    siteId: { type: String, default: "" },
     files: [
       {
         path: String,
