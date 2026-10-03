@@ -163,6 +163,180 @@ async function extractFilesFromDataTransfer(dataTransfer) {
   return files.filter((f) => f && f.name && typeof f.size === "number");
 }
 
+const DEFAULT_IGNORE_PATTERNS = [
+  "node_modules",
+  ".git",
+  ".env",
+  ".env.local",
+  ".ds_store",
+  "dist",
+  "build",
+  "coverage",
+  "*.log"
+];
+
+function escapeRegexChar(char) {
+  return char.replace(/[.+^${}()|]/g, "\\$&");
+}
+
+function globToRegexStr(pattern) {
+  let re = "";
+  let i = 0;
+  const s = pattern;
+  while (i < s.length) {
+    const c = s[i];
+    if (c === "*") {
+      if (s[i + 1] === "*") {
+        if (s[i + 2] === "/") {
+          re += "(?:.*/)?";
+          i += 3;
+        } else {
+          re += ".*";
+          i += 2;
+        }
+      } else {
+        re += "[^/]*";
+        i += 1;
+      }
+    } else if (c === "?") {
+      re += "[^/]";
+      i += 1;
+    } else if (c === "[") {
+      const close = s.indexOf("]", i + 1);
+      if (close === -1) {
+        re += "\\[";
+        i += 1;
+      } else {
+        const cls = s.slice(i + 1, close).replace(/\\/g, "\\\\").replace(/\//g, "\\/");
+        re += `[${cls}]`;
+        i = close + 1;
+      }
+    } else if (c === "\\") {
+      re += `\\${s[i + 1] || ""}`;
+      i += 2;
+    } else {
+      re += escapeRegexChar(c);
+      i += 1;
+    }
+  }
+  return re;
+}
+
+function parseGitignore(content) {
+  const rules = [];
+  const lines = String(content || "").replace(/^\uFEFF/, "").split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    let line = rawLine.replace(/\s+$/, "");
+    if (!line || line.startsWith("#")) continue;
+    if (line.startsWith("\\#")) line = line.slice(1);
+    if (line.startsWith("\\!")) line = line.slice(1);
+
+    let negated = false;
+    if (line.startsWith("!")) {
+      negated = true;
+      line = line.slice(1);
+    }
+    if (!line) continue;
+
+    let dirOnly = false;
+    if (line.endsWith("/")) {
+      dirOnly = true;
+      line = line.slice(0, -1);
+    }
+
+    let anchored = false;
+    if (line.startsWith("/")) {
+      anchored = true;
+      line = line.slice(1);
+    }
+
+    if (!line) continue;
+
+    const baseNameOnly = !anchored && !line.includes("/");
+    rules.push({
+      line,
+      negated,
+      dirOnly,
+      anchored,
+      baseNameOnly,
+      regex: new RegExp(`^${globToRegexStr(line)}$`)
+    });
+  }
+
+  return rules;
+}
+
+function isGitignoreFile(relPath) {
+  const norm = String(relPath || "").replace(/\\/g, "/").toLowerCase();
+  return norm === ".gitignore" || norm.endsWith("/.gitignore");
+}
+
+function patternMatches(rule, relPath) {
+  const normPath = String(relPath || "").replace(/\\/g, "/").toLowerCase();
+  const normLine = rule.line.toLowerCase();
+  const segments = normPath.split("/");
+  const basename = segments[segments.length - 1];
+
+  if (rule.baseNameOnly || rule.dirOnly) {
+    if (segments.some((segment) => rule.regex.test(segment) || segment === normLine)) {
+      return true;
+    }
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    const subPath = segments.slice(i).join("/");
+    if (subPath === normLine || subPath.startsWith(`${normLine}/`)) {
+      return true;
+    }
+    if (rule.regex.test(subPath)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isIgnoredPath(relPath, customRules = []) {
+  const normPath = String(relPath || "").replace(/\\/g, "/").replace(/^\.\/+/, "").replace(/\/+$/, "");
+  if (!normPath) return false;
+
+  if (isGitignoreFile(normPath)) return false;
+
+  const defaultRules = parseGitignore(DEFAULT_IGNORE_PATTERNS.join("\n"));
+  const allRules = [...defaultRules, ...(Array.isArray(customRules) ? customRules : [])];
+
+  let ignored = false;
+  for (const rule of allRules) {
+    if (patternMatches(rule, normPath)) {
+      ignored = !rule.negated;
+    }
+  }
+  return ignored;
+}
+
+async function filterFilesWithGitignore(files) {
+  let gitignoreContent = "";
+
+  for (const file of files) {
+    const relPath = file.webkitRelativePath || file.name || "";
+    if (isGitignoreFile(relPath)) {
+      try {
+        const text = await file.text();
+        gitignoreContent += "\n" + text;
+      } catch (_) {}
+    }
+  }
+
+  const customRules = parseGitignore(gitignoreContent);
+
+  return files.filter((file) => {
+    const relPath = file.webkitRelativePath || file.name || "";
+    if (isGitignoreFile(relPath)) return true;
+    return !isIgnoredPath(relPath, customRules);
+  });
+}
+
 const RESERVED_KEYWORDS = [
   "login",
   "admin",
@@ -705,13 +879,17 @@ function RepoDetail() {
     try {
       const droppedFiles = await extractFilesFromDataTransfer(e.dataTransfer);
       if (droppedFiles && droppedFiles.length > 0) {
-        setFilesToUpload(droppedFiles);
-        setUploadMessage("");
-        setUploadError(false);
-        if (!commitMessage) {
-          setCommitMessage(`Add ${droppedFiles.length} file(s) via upload`);
+        const filteredFiles = await filterFilesWithGitignore(droppedFiles);
+        if (filteredFiles && filteredFiles.length > 0) {
+          setFilesToUpload(filteredFiles);
+          setUploadMessage("");
+          setUploadError(false);
+          setCommitMessage(`Add ${filteredFiles.length} file(s) via upload`);
+          setShowUploadModal(true);
+        } else {
+          setUploadError(true);
+          setUploadMessage("All files in the dropped folder were ignored by .gitignore.");
         }
-        setShowUploadModal(true);
       }
     } catch (err) {
       console.error("Error extracting dropped files:", err);
@@ -720,16 +898,20 @@ function RepoDetail() {
     }
   }
 
-  function handleFileSelectChange(e) {
+  async function handleFileSelectChange(e) {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFiles = Array.from(e.target.files);
-      setFilesToUpload(selectedFiles);
-      setUploadMessage("");
-      setUploadError(false);
-      if (!commitMessage) {
-        setCommitMessage(`Add ${selectedFiles.length} file(s) via upload`);
+      const filteredFiles = await filterFilesWithGitignore(selectedFiles);
+      if (filteredFiles && filteredFiles.length > 0) {
+        setFilesToUpload(filteredFiles);
+        setUploadMessage("");
+        setUploadError(false);
+        setCommitMessage(`Add ${filteredFiles.length} file(s) via upload`);
+        setShowUploadModal(true);
+      } else {
+        setUploadError(true);
+        setUploadMessage("All selected files were ignored by .gitignore.");
       }
-      setShowUploadModal(true);
     }
   }
 
