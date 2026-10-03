@@ -597,8 +597,8 @@ router.post("/find/:owner/:repoName/upload", requireAuth, requireRepoOwner, uplo
     for (const f of files) {
       const rel = normalizeRelPath(f.originalname || f.filename || f.path || "");
       if (!rel) continue;
-      // Completely exclude .gitignore files themselves AND any files matched by .gitignore patterns
-      if (isGitignoreFile(rel) || (!repo.ignoreGitignore && isIgnored(rel, customRules))) {
+      // Do not exclude .gitignore files themselves; only exclude files matching .gitignore rules
+      if (!isGitignoreFile(rel) && !repo.ignoreGitignore && isIgnored(rel, customRules)) {
         ignoredCount++;
         continue;
       }
@@ -609,7 +609,6 @@ router.post("/find/:owner/:repoName/upload", requireAuth, requireRepoOwner, uplo
 
     for (const file of filesToUpload) {
       const fileName = file.originalname || file.filename || file.path || "file";
-      if (isGitignoreFile(fileName)) continue;
       const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_");
       const b2FileName = `repos/${repo._id}/${Date.now()}_${sanitizedFileName}`;
       let b2Url = "";
@@ -640,18 +639,22 @@ router.post("/find/:owner/:repoName/upload", requireAuth, requireRepoOwner, uplo
         uploadedAt: new Date()
       };
 
+      if (isGitignoreFile(fileName) && Buffer.isBuffer(file.buffer)) {
+        newFileObj.content = file.buffer.toString("utf-8");
+      }
+
       const existingIndex = repo.files.findIndex(f => f.path === fileName && (f.branch || "main") === targetBranch);
       if (existingIndex >= 0) {
-        repo.files[existingIndex] = newFileObj;
+        repo.files[existingIndex] = { ...repo.files[existingIndex], ...newFileObj };
       } else {
         repo.files.push(newFileObj);
       }
       uploadedCount++;
     }
 
-    // Filter out .gitignore files themselves and ignored files from stored repo.files list
+    // Keep .gitignore files and non-ignored files in stored repo.files list
     repo.files = (repo.files || []).filter(
-      (f) => !isGitignoreFile(f.path || "") && (repo.ignoreGitignore ? true : !isIgnored(f.path || "", customRules))
+      (f) => isGitignoreFile(f.path || "") || (repo.ignoreGitignore ? true : !isIgnored(f.path || "", customRules))
     );
 
     const commitHash = Math.random().toString(36).substring(2, 9);

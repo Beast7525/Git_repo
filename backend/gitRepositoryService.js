@@ -5,6 +5,8 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { b2 } = require("./backblaze");
 
+const { parseGitignore, isIgnored, isGitignoreFile } = require("./gitignore");
+
 const execFileAsync = promisify(execFile);
 const STORAGE_ROOT = process.env.REPOSITORY_STORAGE_ROOT || path.join(__dirname, "repositories");
 
@@ -41,18 +43,42 @@ async function runGit(args, cwd) {
   return `${stdout || ""}${stderr || ""}`.trim();
 }
 
-async function writeUploadedFiles(repoDir, files) {
+async function writeUploadedFiles(repoDir, files, repo = {}) {
   const writtenFiles = [];
+
+  let gitignoreContent = "";
+  for (const file of files) {
+    const relPath = safeRelativePath(file.path || file.name);
+    if (isGitignoreFile(relPath)) {
+      if (typeof file.content === "string") {
+        const isBase64 = file.isBase64 || (!file.content.includes("\n") && file.content.length % 4 === 0);
+        const text = isBase64 ? Buffer.from(file.content, "base64").toString("utf-8") : file.content;
+        gitignoreContent += "\n" + text;
+      } else if (Buffer.isBuffer(file.content)) {
+        gitignoreContent += "\n" + file.content.toString("utf-8");
+      }
+    }
+  }
+
+  const customRules = parseGitignore(gitignoreContent);
 
   for (const file of files) {
     const relativePath = safeRelativePath(file.path || file.name);
+
+    if (!isGitignoreFile(relativePath) && !repo?.ignoreGitignore && isIgnored(relativePath, customRules)) {
+      continue;
+    }
+
     const absolutePath = path.resolve(repoDir, relativePath);
 
     if (!absolutePath.startsWith(path.resolve(repoDir) + path.sep)) {
       throw new Error(`Invalid upload path: ${relativePath}`);
     }
 
-    const content = Buffer.from(file.content || "", "base64");
+    const content = Buffer.isBuffer(file.content)
+      ? file.content
+      : Buffer.from(file.content || "", typeof file.content === "string" && file.isBase64 ? "base64" : "utf-8");
+
     await fs.mkdir(path.dirname(absolutePath), { recursive: true });
     await fs.writeFile(absolutePath, content);
     writtenFiles.push({
@@ -128,7 +154,7 @@ async function initializeRepository(repo, files, remoteUrl) {
   const repoDir = path.join(STORAGE_ROOT, String(repo._id), slugify(repo.repositoryName || repo.name));
   await fs.mkdir(repoDir, { recursive: true });
 
-  const writtenFiles = await writeUploadedFiles(repoDir, files);
+  const writtenFiles = await writeUploadedFiles(repoDir, files, repo);
 
   await runGit(["init"], repoDir);
   await runGit(["add", "."], repoDir);

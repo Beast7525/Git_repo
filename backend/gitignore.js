@@ -125,15 +125,17 @@ function patternMatches(rule, relPath) {
     }
   }
 
-  if (normPath === normLine || normPath.startsWith(`${normLine}/`)) {
-    return true;
+  for (let i = 0; i < segments.length; i++) {
+    const subPath = segments.slice(i).join("/");
+    if (subPath === normLine || subPath.startsWith(`${normLine}/`)) {
+      return true;
+    }
+    if (rule.regex.test(subPath)) {
+      return true;
+    }
   }
 
-  if (rule.baseNameOnly) {
-    return rule.regex.test(basename);
-  }
-
-  return rule.regex.test(normPath);
+  return false;
 }
 
 // Returns true when relPath should be excluded (last matching rule wins,
@@ -142,8 +144,8 @@ function isIgnored(relPath, customRules = []) {
   const normPath = normalizeRelPath(relPath);
   if (!normPath) return false;
 
-  // Always exclude .gitignore files themselves
-  if (isGitignoreFile(normPath)) return true;
+  // .gitignore files themselves are NEVER ignored
+  if (isGitignoreFile(normPath)) return false;
 
   // Combine default ignore rules with custom .gitignore rules
   const defaultRules = parseGitignore(DEFAULT_IGNORE_PATTERNS.join("\n"));
