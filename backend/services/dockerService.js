@@ -1,3 +1,4 @@
+const path = require("path");
 const { execFile, spawn } = require("child_process");
 
 function execFilePromise(cmd, args, options = {}) {

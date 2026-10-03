@@ -544,6 +544,59 @@ function RepoDetail() {
     setDeployEnvVars((prev) => [...prev, { name: "", value: "" }]);
   };
 
+  const envFileInputRef = useRef(null);
+  const [envImportMsg, setEnvImportMsg] = useState("");
+
+  const handleImportEnvFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/);
+      const parsedVars = [];
+
+      for (let rawLine of lines) {
+        let line = rawLine.trim();
+        if (!line || line.startsWith("#")) continue;
+        const eqIdx = line.indexOf("=");
+        if (eqIdx <= 0) continue;
+
+        const key = line.slice(0, eqIdx).trim();
+        let value = line.slice(eqIdx + 1).trim();
+
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+
+        if (key) {
+          parsedVars.push({ name: key, value });
+        }
+      }
+
+      if (parsedVars.length > 0) {
+        setDeployEnvVars((prev) => {
+          const existingMap = new Map(
+            prev.filter((item) => item.name && item.name.trim()).map((item) => [item.name.trim(), item.value])
+          );
+          for (const item of parsedVars) {
+            existingMap.set(item.name, item.value);
+          }
+          return Array.from(existingMap.entries()).map(([name, value]) => ({ name, value }));
+        });
+        setEnvImportMsg(`✓ Imported ${parsedVars.length} variable(s) from ${file.name}`);
+        setTimeout(() => setEnvImportMsg(""), 4000);
+      } else {
+        alert("No valid KEY=VALUE environment variables found in the selected file.");
+      }
+    } catch (err) {
+      console.error("Error reading .env file:", err);
+      alert("Error reading .env file: " + err.message);
+    } finally {
+      if (e.target) e.target.value = "";
+    }
+  };
+
   const handleUpdateEnvVar = (index, field, value) => {
     setDeployEnvVars((prev) => {
       const copy = [...prev];
@@ -2984,20 +3037,44 @@ function RepoDetail() {
             </div>
 
             {/* Environment Variables Section */}
+            {/* Environment Variables Section */}
             <div style={{ marginBottom: "16px" }}>
+              <input
+                type="file"
+                ref={envFileInputRef}
+                accept=".env,text/plain"
+                onChange={handleImportEnvFile}
+                style={{ display: "none" }}
+              />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--repo-text)", margin: 0 }}>
                   Environment Variables
                 </label>
-                <button
-                  type="button"
-                  className="gh-btn"
-                  onClick={handleAddEnvVar}
-                  style={{ fontSize: "12px", padding: "3px 8px" }}
-                >
-                  + Add Variable
-                </button>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    className="gh-btn"
+                    onClick={() => envFileInputRef.current?.click()}
+                    style={{ fontSize: "12px", padding: "3px 10px", background: "var(--repo-panel-soft)", border: "1px solid var(--repo-line)" }}
+                  >
+                    📁 Choose .env File
+                  </button>
+                  <button
+                    type="button"
+                    className="gh-btn"
+                    onClick={handleAddEnvVar}
+                    style={{ fontSize: "12px", padding: "3px 10px" }}
+                  >
+                    + Add Variable
+                  </button>
+                </div>
               </div>
+
+              {envImportMsg && (
+                <div style={{ fontSize: "12px", color: "#3fb950", fontWeight: 600, marginBottom: "8px" }}>
+                  {envImportMsg}
+                </div>
+              )}
 
               {deployEnvVars.length === 0 ? (
                 <div style={{ fontSize: "12px", color: "#8b949e", fontStyle: "italic" }}>
