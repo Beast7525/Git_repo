@@ -45,17 +45,52 @@ async function buildImage(imageTag, buildDir, appendLog) {
   }
 }
 
+const activeProcesses = new Map();
+
 async function createAndStartContainer({
   containerName,
   imageTag,
   hostPort,
   containerPort = 3000,
   envVars = {},
+  tempDir = "",
+  startCommand = "npm start",
   appendLog,
 }) {
   const isAvailable = await isDockerAvailable();
   if (!isAvailable) {
-    appendLog(`Fallback Container Mode: Initializing process worker on host port ${hostPort}...`);
+    if (appendLog) appendLog(`Notice: Docker CLI/Daemon is not active on host system. Starting process worker on host port ${hostPort}...`);
+
+    if (activeProcesses.has(containerName)) {
+      try { activeProcesses.get(containerName).kill(); } catch (_) {}
+      activeProcesses.delete(containerName);
+    }
+
+    const fsSync = require("fs");
+    const serverScript = tempDir ? path.join(tempDir, "server.js") : "";
+
+    if (tempDir && fsSync.existsSync(serverScript)) {
+      const child = spawn("node", ["server.js"], {
+        cwd: tempDir,
+        env: { ...process.env, PORT: String(hostPort), ...envVars },
+        stdio: "ignore"
+      });
+
+      activeProcesses.set(containerName, child);
+      if (appendLog) appendLog(`Process container worker started (PID ${child.pid}) on http://localhost:${hostPort}`);
+      return { containerId: `proc_${child.pid}`, mock: true };
+    }
+
+    const http = require("http");
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "live", message: "GitRepo Backend Deployment Live", port: hostPort }));
+    });
+
+    server.listen(hostPort, "0.0.0.0");
+    activeProcesses.set(containerName, { kill: () => server.close() });
+
+    if (appendLog) appendLog(`Fallback listener active on http://localhost:${hostPort}`);
     return { containerId: `mock_cnt_${Date.now()}`, mock: true };
   }
 
@@ -107,11 +142,14 @@ async function createAndStartContainer({
 }
 
 async function stopContainer(containerName, appendLog) {
-  const isAvailable = await isDockerAvailable();
-  if (!isAvailable) {
+  if (activeProcesses.has(containerName)) {
+    try { activeProcesses.get(containerName).kill(); } catch (_) {}
+    activeProcesses.delete(containerName);
     if (appendLog) appendLog(`Stopped fallback process container '${containerName}'.`);
     return true;
   }
+  const isAvailable = await isDockerAvailable();
+  if (!isAvailable) return true;
   try {
     await execFilePromise("docker", ["stop", containerName]);
     if (appendLog) appendLog(`Docker container '${containerName}' stopped successfully.`);

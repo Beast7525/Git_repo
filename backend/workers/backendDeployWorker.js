@@ -111,6 +111,8 @@ CMD ["npm", "start"]
       hostPort: allocatedHostPort,
       containerPort: internalPort,
       envVars: decryptedEnvVars,
+      tempDir,
+      startCommand: scripts.start || "npm start",
       appendLog,
     });
 
