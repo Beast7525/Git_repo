@@ -4,7 +4,7 @@ const path = require("path");
 const os = require("os");
 const Deployment = require("../models/Deployment");
 const Repo = require("../models/Repo");
-const { downloadCommitFiles } = require("../services/deployService");
+const { downloadCommitFiles, getDeploymentUrl } = require("../services/deployService");
 const { decryptObject } = require("../services/cryptoService");
 const dockerService = require("../services/dockerService");
 const portService = require("../services/portService");
@@ -145,11 +145,7 @@ CMD ["npm", "start"]
 
     // Step 6: Configure Public Deployment URL & Host Mapping
     const repoName = repo.name || repo.repositoryName || "my-api";
-    const rawPublicHost = process.env.DEPLOY_PUBLIC_HOST ||
-      (process.env.DEPLOY_SERVER_PUBLIC_IP ? `http://${process.env.DEPLOY_SERVER_PUBLIC_IP}` : "http://localhost");
-
-    const cleanHost = rawPublicHost.replace(/\/+$/, "");
-    const deploymentUrl = `${cleanHost}:${allocatedHostPort}`;
+    const deploymentUrl = getDeploymentUrl(allocatedHostPort);
 
     proxyService.registerProxyRoute(repoName, allocatedHostPort, deploymentId);
 

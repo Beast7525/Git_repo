@@ -367,7 +367,18 @@ async function runDeploymentProcess(deploymentId) {
   }
 }
 
+function getDeploymentUrl(hostPort) {
+  const publicHost = process.env.DEPLOY_PUBLIC_HOST;
+
+  if (!publicHost) {
+    throw new Error("DEPLOY_PUBLIC_HOST is not configured");
+  }
+
+  return `${publicHost.replace(/\/+$/, "")}:${hostPort}`;
+}
+
 module.exports = {
+  getDeploymentUrl,
   downloadCommitFiles,
   detectAndBuildProject,
   deployToNetlify,

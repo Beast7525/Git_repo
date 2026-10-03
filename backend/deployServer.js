@@ -5,6 +5,8 @@ const path = require("path");
 const os = require("os");
 const net = require("net");
 
+const { getDeploymentUrl } = require("./services/deployService");
+
 const app = express();
 app.use(express.json({ limit: "50mb" }));
 
@@ -137,10 +139,7 @@ CMD ["npm", "start"]
     const runRes = await execFilePromise("docker", dockerArgs, { timeout: 60000 });
     const containerId = runRes.stdout.trim();
 
-    const rawPublicHost = process.env.DEPLOY_PUBLIC_HOST ||
-      (process.env.DEPLOY_SERVER_PUBLIC_IP ? `http://${process.env.DEPLOY_SERVER_PUBLIC_IP}` : `http://${PUBLIC_IP}`);
-    const cleanHost = rawPublicHost.replace(/\/+$/, "");
-    const deploymentUrl = `${cleanHost}:${hostPort}`;
+    const deploymentUrl = getDeploymentUrl(hostPort);
 
     res.status(200).json({
       success: true,

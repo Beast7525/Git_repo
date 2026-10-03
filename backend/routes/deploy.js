@@ -9,8 +9,24 @@ const portService = require("../services/portService");
 const healthCheckService = require("../services/healthCheckService");
 const proxyService = require("../services/proxyService");
 
+const { getDeploymentUrl } = require("../services/deployService");
+
 const router = express.Router();
 router.use(optionalAuth);
+
+function resolveDeploymentUrl(d) {
+  if (!d) return d;
+  let url = d.deploymentUrl || "";
+  if (d.hostPort && process.env.DEPLOY_PUBLIC_HOST) {
+    try {
+      url = getDeploymentUrl(d.hostPort);
+      if (d.deploymentUrl !== url) {
+        Deployment.updateOne({ _id: d._id || d.id }, { $set: { deploymentUrl: url } }).catch(() => {});
+      }
+    } catch (_) {}
+  }
+  return { ...d, deploymentUrl: url };
+}
 
 // Helper to check view/deploy access for a repository
 async function canDeployRepo(repo, user) {
@@ -117,11 +133,13 @@ router.get("/:deploymentId", requireAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: "Deployment not found." });
     }
 
+    const resolved = resolveDeploymentUrl(deployment);
+
     // Sanitize response: do NOT leak raw environment variable ciphertext/secrets to frontend
     const sanitizedDeployment = {
-      ...deployment,
-      id: deployment._id,
-      environmentVariablesCount: deployment.environmentVariables?.data ? 1 : 0,
+      ...resolved,
+      id: resolved._id,
+      environmentVariablesCount: resolved.environmentVariables?.data ? 1 : 0,
       environmentVariables: undefined, // Stripped for security
     };
 
@@ -303,11 +321,14 @@ router.get("/repo/:repositoryId", requireAuth, async (req, res) => {
       .limit(30)
       .lean();
 
-    const sanitizedDeployments = (deployments || []).map((d) => ({
-      ...d,
-      id: d._id,
-      environmentVariables: undefined, // Omit sensitive secrets
-    }));
+    const sanitizedDeployments = (deployments || []).map((d) => {
+      const resolved = resolveDeploymentUrl(d);
+      return {
+        ...resolved,
+        id: resolved._id,
+        environmentVariables: undefined, // Omit sensitive secrets
+      };
+    });
 
     res.status(200).json({
       success: true,
