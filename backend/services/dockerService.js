@@ -123,8 +123,7 @@ async function createAndStartContainer({
       }
 
       activeProcesses.set(containerName, child);
-      let targetUrl = "http://localhost:" + hostPort;
-      try { targetUrl = getDeploymentUrl(hostPort); } catch (_) {}
+      let targetUrl = getDeploymentUrl(hostPort);
       if (appendLog) appendLog(`Process container worker started (PID ${child.pid}) on ${targetUrl}`);
       return { containerId: `proc_${child.pid}`, mock: true };
     }
@@ -138,8 +137,7 @@ async function createAndStartContainer({
     server.listen(hostPort, "0.0.0.0");
     activeProcesses.set(containerName, { kill: () => server.close() });
 
-    let targetUrl = "http://localhost:" + hostPort;
-    try { targetUrl = getDeploymentUrl(hostPort); } catch (_) {}
+    let targetUrl = getDeploymentUrl(hostPort);
     if (appendLog) appendLog(`Fallback listener active on ${targetUrl}`);
     return { containerId: `mock_cnt_${Date.now()}`, mock: true };
   }
