@@ -1,5 +1,6 @@
 const path = require("path");
 const { execFile, spawn } = require("child_process");
+const { getDeploymentUrl } = require("./deployService");
 
 function execFilePromise(cmd, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -83,6 +84,16 @@ async function createAndStartContainer({
         }
       }
 
+      // Overwrite PORT in tempDir/.env so dotenv.config() inside app uses hostPort
+      const envFilePath = path.join(tempDir, ".env");
+      let envFileContent = "";
+      if (fsSync.existsSync(envFilePath)) {
+        try { envFileContent = fsSync.readFileSync(envFilePath, "utf-8"); } catch (_) {}
+      }
+      envFileContent = envFileContent.replace(/^PORT\s*=.*$/gm, "").trim();
+      envFileContent += `\nPORT=${hostPort}\nHOST=0.0.0.0\n`;
+      try { fsSync.writeFileSync(envFilePath, envFileContent); } catch (_) {}
+
       let entryScript = "server.js";
       if (!fsSync.existsSync(path.join(tempDir, entryScript))) {
         if (fsSync.existsSync(path.join(tempDir, "index.js"))) entryScript = "index.js";
@@ -94,7 +105,7 @@ async function createAndStartContainer({
 
       const child = spawn("node", [entryScript], {
         cwd: tempDir,
-        env: { ...process.env, PORT: String(hostPort), ...envVars },
+        env: { ...process.env, PORT: String(hostPort), HOST: "0.0.0.0", ...envVars },
         stdio: ["ignore", "pipe", "pipe"]
       });
 
@@ -112,7 +123,9 @@ async function createAndStartContainer({
       }
 
       activeProcesses.set(containerName, child);
-      if (appendLog) appendLog(`Process container worker started (PID ${child.pid}) on http://localhost:${hostPort}`);
+      let targetUrl = "http://localhost:" + hostPort;
+      try { targetUrl = getDeploymentUrl(hostPort); } catch (_) {}
+      if (appendLog) appendLog(`Process container worker started (PID ${child.pid}) on ${targetUrl}`);
       return { containerId: `proc_${child.pid}`, mock: true };
     }
 
@@ -125,7 +138,9 @@ async function createAndStartContainer({
     server.listen(hostPort, "0.0.0.0");
     activeProcesses.set(containerName, { kill: () => server.close() });
 
-    if (appendLog) appendLog(`Fallback listener active on http://localhost:${hostPort}`);
+    let targetUrl = "http://localhost:" + hostPort;
+    try { targetUrl = getDeploymentUrl(hostPort); } catch (_) {}
+    if (appendLog) appendLog(`Fallback listener active on ${targetUrl}`);
     return { containerId: `mock_cnt_${Date.now()}`, mock: true };
   }
 
