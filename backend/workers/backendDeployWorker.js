@@ -137,16 +137,13 @@ CMD ["npm", "start"]
       appendLog("Health check bypassed for process container mock.");
     }
 
-    // Step 6: Configure Reverse Proxy & Public URL
+    // Step 6: Configure Public Deployment URL & Reverse Proxy
     const repoName = repo.name || repo.repositoryName || "my-api";
-    const existingDeploys = await Deployment.find({ _id: { $ne: deploymentId } }).select("deploymentUrl").lean();
-    const existingDomains = existingDeploys.map((d) => d.deploymentUrl).filter(Boolean);
+    const serverIp = process.env.DEPLOY_SERVER_PUBLIC_IP || "localhost";
+    const deploymentUrl = process.env.DEPLOYMENT_BASE_URL
+      ? `${process.env.DEPLOYMENT_BASE_URL.replace(/\/+$/, "")}/${repoName}`
+      : `http://${serverIp}:${allocatedHostPort}`;
 
-    const domainName = proxyService.generateSubdomain(repoName, existingDomains);
-    const deploymentUrl = `https://${domainName}`;
-
-    proxyService.registerProxyRoute(domainName, allocatedHostPort, deploymentId);
-    // Also register fallback path routing for localhost dev testing: /_deploy/<projectName>
     proxyService.registerProxyRoute(repoName, allocatedHostPort, deploymentId);
 
     // Step 7: Mark Deployment Live

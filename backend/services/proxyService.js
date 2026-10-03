@@ -21,7 +21,10 @@ function generateSubdomain(repoName, existingSubdomains = []) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "") || "my-api";
 
-  const domainBase = process.env.DEPLOYMENT_DOMAIN || "gitrepo.app";
+  const domainBase = process.env.DEPLOYMENT_BASE_URL ? process.env.DEPLOYMENT_BASE_URL.replace(/^https?:\/\//, "") : "";
+  if (!domainBase) {
+    return sanitized;
+  }
   let candidate = `${sanitized}.${domainBase}`;
 
   if (!existingSubdomains.includes(candidate) && !activeRoutes.has(candidate)) {

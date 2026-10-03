@@ -330,11 +330,34 @@ async function filterFilesWithGitignore(files) {
 
   const customRules = parseGitignore(gitignoreContent);
 
-  return files.filter((file) => {
+  const filtered = files.filter((file) => {
     const relPath = file.webkitRelativePath || file.name || "";
     if (isGitignoreFile(relPath)) return true;
     return !isIgnoredPath(relPath, customRules);
   });
+
+  // If all filtered files share the same top-level dropped folder prefix (e.g., "temp/"),
+  // strip the top wrapper folder prefix so the project files sit directly at the repository root.
+  if (filtered.length > 0) {
+    const samplePath = String(filtered[0].webkitRelativePath || filtered[0].name || "").replace(/\\/g, "/");
+    if (samplePath.includes("/")) {
+      const firstSegment = samplePath.split("/")[0] + "/";
+      const allSharePrefix = filtered.every((f) => {
+        const p = String(f.webkitRelativePath || f.name || "").replace(/\\/g, "/");
+        return p.startsWith(firstSegment);
+      });
+
+      if (allSharePrefix) {
+        filtered.forEach((f) => {
+          const p = String(f.webkitRelativePath || f.name || "").replace(/\\/g, "/");
+          const clean = p.slice(firstSegment.length);
+          Object.defineProperty(f, "cleanPath", { value: clean, writable: true, configurable: true });
+        });
+      }
+    }
+  }
+
+  return filtered;
 }
 
 const RESERVED_KEYWORDS = [
@@ -938,7 +961,7 @@ function RepoDetail() {
     try {
       const formData = new FormData();
       filesArr.forEach((file) => {
-        const filePath = file.webkitRelativePath || file.name;
+        const filePath = file.cleanPath || file.webkitRelativePath || file.name;
         formData.append("files", file, filePath);
       });
       formData.append("message", finalCommitMsg);
