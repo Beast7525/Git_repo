@@ -269,6 +269,9 @@ function RepoDetail() {
   const [isStartingDeploy, setIsStartingDeploy] = useState(false);
   const [deployErrorMessage, setDeployErrorMessage] = useState("");
   const [showBuildLogs, setShowBuildLogs] = useState(false);
+  const [deployEnvVars, setDeployEnvVars] = useState([{ name: "NODE_ENV", value: "production" }]);
+  const [logContent, setLogContent] = useState([]);
+  const [logLoading, setLogLoading] = useState(false);
 
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -296,10 +299,10 @@ function RepoDetail() {
     }
   }, [repo]);
 
-  // Poll active deployment if status is pending/downloading/building/deploying
+  // Poll active deployment if status is queued/downloading/building/starting
   useEffect(() => {
     if (!activeDeployment || !activeDeployment._id) return;
-    const isFinished = activeDeployment.status === "success" || activeDeployment.status === "failed";
+    const isFinished = ["live", "success", "failed", "stopped"].includes(activeDeployment.status);
     if (isFinished) return;
 
     const interval = setInterval(async () => {
@@ -309,7 +312,7 @@ function RepoDetail() {
           const data = await res.json();
           if (data.success && data.deployment) {
             setActiveDeployment(data.deployment);
-            if (data.deployment.status === "success" || data.deployment.status === "failed") {
+            if (["live", "success", "failed", "stopped"].includes(data.deployment.status)) {
               fetchDeployments();
             }
           }
@@ -322,6 +325,22 @@ function RepoDetail() {
     return () => clearInterval(interval);
   }, [activeDeployment]);
 
+  const handleAddEnvVar = () => {
+    setDeployEnvVars((prev) => [...prev, { name: "", value: "" }]);
+  };
+
+  const handleUpdateEnvVar = (index, field, value) => {
+    setDeployEnvVars((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleRemoveEnvVar = (index) => {
+    setDeployEnvVars((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleStartDeployment = async () => {
     if (!repo || !repo._id) return;
     const targetCommit = deployCommitId || repo.lastCommit?.hash || (rawHistory && rawHistory[0] ? rawHistory[0].hash : "main");
@@ -333,29 +352,95 @@ function RepoDetail() {
     setIsStartingDeploy(true);
     setDeployErrorMessage("");
 
+    const envObj = {};
+    for (const item of deployEnvVars) {
+      if (item.name && item.name.trim()) {
+        envObj[item.name.trim()] = item.value || "";
+      }
+    }
+
     try {
-      const res = await apiFetch(`${API_BASE_URL}/api/deploy`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/deploy/backend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           repositoryId: repo._id,
           commitId: targetCommit,
+          environmentVariables: envObj,
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to initiate deployment.");
+        throw new Error(data.message || "Failed to initiate backend deployment.");
       }
 
       setShowDeployModal(false);
-      setActiveDeployment({ _id: data.deploymentId, status: "pending", commitId: targetCommit });
+      setActiveDeployment({ _id: data.deploymentId, status: "queued", commitId: targetCommit, projectName: data.projectName });
       setActiveTab("deploy");
       fetchDeployments();
     } catch (err) {
       setDeployErrorMessage(err.message || "Error starting deployment.");
     } finally {
       setIsStartingDeploy(false);
+    }
+  };
+
+  const handleStopDeployment = async (depId) => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/deploy/${depId}/stop`, { method: "POST" });
+      if (res.ok) {
+        fetchDeployments();
+        if (activeDeployment && (activeDeployment._id === depId || activeDeployment.id === depId)) {
+          setActiveDeployment((prev) => prev ? { ...prev, status: "stopped" } : null);
+        }
+      }
+    } catch (err) {
+      console.error("Error stopping deployment:", err);
+    }
+  };
+
+  const handleRestartDeployment = async (depId) => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/deploy/${depId}/restart`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        fetchDeployments();
+        if (activeDeployment && (activeDeployment._id === depId || activeDeployment.id === depId)) {
+          setActiveDeployment((prev) => prev ? { ...prev, status: data.status || "starting" } : null);
+        }
+      }
+    } catch (err) {
+      console.error("Error restarting deployment:", err);
+    }
+  };
+
+  const handleRedeployDeployment = async (depId) => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/deploy/${depId}/redeploy`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        fetchDeployments();
+        setActiveDeployment({ _id: data.deploymentId, status: "queued" });
+      }
+    } catch (err) {
+      console.error("Error triggering redeployment:", err);
+    }
+  };
+
+  const handleFetchLogs = async (depId) => {
+    setLogLoading(true);
+    setShowBuildLogs(true);
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/deploy/${depId}/logs`);
+      if (res.ok) {
+        const data = await res.json();
+        setLogContent(data.logs || []);
+      }
+    } catch (err) {
+      console.error("Error fetching deployment logs:", err);
+    } finally {
+      setLogLoading(false);
     }
   };
 
@@ -1292,8 +1377,10 @@ function RepoDetail() {
             <section className="gh-card deploy-card">
               <div className="deploy-section-title">
                 <div>
-                  <h2 className="gh-card-title" style={{ fontSize: "1.25rem", color: "#f0f6fc" }}>🚀 Website Deployment</h2>
-                  <p className="gh-card-sub">Automatically build and publish live websites to Netlify from repository commits.</p>
+                  <h2 className="gh-card-title" style={{ fontSize: "1.25rem", color: "#f0f6fc", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span>🚀</span> Backend Container Deployment
+                  </h2>
+                  <p className="gh-card-sub">Automatically build, isolate, and run Node.js/Express backend containers with health checks.</p>
                 </div>
                 <button
                   className="gh-btn gh-btn-green"
@@ -1303,84 +1390,109 @@ function RepoDetail() {
                     setShowDeployModal(true);
                   }}
                 >
-                  🚀 Deploy New Version
+                  🚀 Deploy Backend
                 </button>
               </div>
 
-              {/* Active / Current Deployment Progress Card */}
+              {/* Active / Current Deployment Progress & Control Card */}
               {activeDeployment && (
                 <div className={`deploy-status-banner ${activeDeployment.status}`}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                     <div>
-                      <h3 style={{ margin: 0, fontSize: "1.1rem", color: activeDeployment.status === "success" ? "#3fb950" : activeDeployment.status === "failed" ? "#f85149" : "#58a6ff" }}>
-                        {activeDeployment.status === "success" && "✓ Deployment Successful"}
+                      <h3 style={{ margin: 0, fontSize: "1.1rem", color: ["live", "success"].includes(activeDeployment.status) ? "#3fb950" : activeDeployment.status === "failed" ? "#f85149" : activeDeployment.status === "stopped" ? "#e3b341" : "#58a6ff" }}>
+                        {["live", "success"].includes(activeDeployment.status) && "✓ Deployment Successful (LIVE)"}
                         {activeDeployment.status === "failed" && "✗ Deployment Failed"}
-                        {(activeDeployment.status === "pending" || activeDeployment.status === "downloading" || activeDeployment.status === "building" || activeDeployment.status === "deploying") && "🚀 Deploying in progress..."}
+                        {activeDeployment.status === "stopped" && "⏹ Deployment Stopped"}
+                        {["queued", "downloading", "building", "starting", "installing", "pending"].includes(activeDeployment.status) && `🚀 Deployment ${activeDeployment.status.toUpperCase()}...`}
                       </h3>
                       <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "#8b949e" }}>
-                        Commit: <strong style={{ color: "#58a6ff" }}>{activeDeployment.commitId}</strong> • Provider: Netlify
+                        Project: <strong style={{ color: "#f0f6fc" }}>{activeDeployment.projectName || repo.name || repo.repositoryName}</strong> • Commit: <strong style={{ color: "#58a6ff" }}>{activeDeployment.commitId}</strong> • Type: <strong style={{ color: "#a7dda6" }}>Backend (Docker)</strong>
                       </p>
                     </div>
-                    {activeDeployment.deploymentUrl && (
-                      <a
-                        href={activeDeployment.deploymentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="gh-btn gh-btn-green"
-                        style={{ textDecoration: "none" }}
+
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {activeDeployment.deploymentUrl && (
+                        <a
+                          href={activeDeployment.deploymentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="gh-btn gh-btn-green"
+                          style={{ textDecoration: "none", fontWeight: "700" }}
+                        >
+                          🌐 Open API ↗
+                        </a>
+                      )}
+                      <button
+                        className="gh-btn"
+                        onClick={() => handleFetchLogs(activeDeployment._id || activeDeployment.id)}
                       >
-                        🌐 Visit Website ↗
-                      </a>
-                    )}
+                        📑 Logs
+                      </button>
+                      {(activeDeployment.status === "live" || activeDeployment.status === "success") && (
+                        <button
+                          className="gh-btn"
+                          style={{ borderColor: "rgba(239, 68, 68, 0.4)", color: "#f87171" }}
+                          onClick={() => handleStopDeployment(activeDeployment._id || activeDeployment.id)}
+                        >
+                          ⏹ Stop
+                        </button>
+                      )}
+                      {activeDeployment.status === "stopped" && (
+                        <button
+                          className="gh-btn gh-btn-primary"
+                          onClick={() => handleRestartDeployment(activeDeployment._id || activeDeployment.id)}
+                        >
+                          ▶ Restart
+                        </button>
+                      )}
+                      <button
+                        className="gh-btn"
+                        onClick={() => handleRedeployDeployment(activeDeployment._id || activeDeployment.id)}
+                      >
+                        🔄 Redeploy
+                      </button>
+                    </div>
                   </div>
 
                   {/* Deployment Progress Stepper */}
                   <div className="deploy-stepper">
-                    <div className={`deploy-step ${["downloading", "building", "deploying", "success"].includes(activeDeployment.status) ? "done" : ""}`}>
-                      {["downloading", "building", "deploying", "success"].includes(activeDeployment.status) ? "✓" : "○"} Repository downloaded from storage
+                    <div className={`deploy-step ${["downloading", "building", "starting", "live", "success"].includes(activeDeployment.status) ? "done" : activeDeployment.status === "queued" ? "current" : ""}`}>
+                      {["downloading", "building", "starting", "live", "success"].includes(activeDeployment.status) ? "✓" : "○"} Queued & downloading commit files from B2
                     </div>
-                    <div className={`deploy-step ${["building", "deploying", "success"].includes(activeDeployment.status) ? "done" : ""}`}>
-                      {["building", "deploying", "success"].includes(activeDeployment.status) ? "✓" : "○"} Project type detected & dependencies installed
+                    <div className={`deploy-step ${["building", "starting", "live", "success"].includes(activeDeployment.status) ? "done" : activeDeployment.status === "downloading" ? "current" : ""}`}>
+                      {["building", "starting", "live", "success"].includes(activeDeployment.status) ? "✓" : "○"} package.json validated & Docker context prepared
                     </div>
-                    <div className={`deploy-step ${activeDeployment.status === "building" ? "current" : ["deploying", "success"].includes(activeDeployment.status) ? "done" : ""}`}>
-                      {activeDeployment.status === "building" ? "⏳" : ["deploying", "success"].includes(activeDeployment.status) ? "✓" : "○"} Project built ({activeDeployment.buildCommand || "npm run build"})
+                    <div className={`deploy-step ${["starting", "live", "success"].includes(activeDeployment.status) ? "done" : activeDeployment.status === "building" ? "current" : ""}`}>
+                      {activeDeployment.status === "building" ? "⏳" : ["starting", "live", "success"].includes(activeDeployment.status) ? "✓" : "○"} Docker image build ({activeDeployment.startCommand || "npm start"})
                     </div>
-                    <div className={`deploy-step ${activeDeployment.status === "deploying" ? "current" : activeDeployment.status === "success" ? "done" : activeDeployment.status === "failed" ? "error" : ""}`}>
-                      {activeDeployment.status === "deploying" ? "⏳" : activeDeployment.status === "success" ? "✓" : activeDeployment.status === "failed" ? "✗" : "○"} Uploaded & published on Netlify
+                    <div className={`deploy-step ${["live", "success"].includes(activeDeployment.status) ? "done" : activeDeployment.status === "starting" ? "current" : activeDeployment.status === "failed" ? "error" : ""}`}>
+                      {activeDeployment.status === "starting" ? "⏳" : ["live", "success"].includes(activeDeployment.status) ? "✓" : activeDeployment.status === "failed" ? "✗" : "○"} Isolated container startup, health check & proxy routing
                     </div>
                   </div>
 
-                  {/* Actions & Error Display */}
+                  {/* Error Output */}
                   {activeDeployment.errorMessage && (
-                    <div style={{ color: "#f85149", fontSize: "0.85rem", marginTop: "10px", fontWeight: 600 }}>
-                      Error: {activeDeployment.errorMessage}
+                    <div style={{ color: "#f85149", fontSize: "0.85rem", marginTop: "12px", padding: "10px 14px", background: "rgba(239, 68, 68, 0.12)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)", fontWeight: 600 }}>
+                      Deployment Failed: {activeDeployment.errorMessage}
                     </div>
                   )}
 
-                  <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
-                    <button
-                      className="gh-btn"
-                      onClick={() => setShowBuildLogs(!showBuildLogs)}
-                    >
-                      {showBuildLogs ? "Hide Build Logs" : "View Build Logs"}
-                    </button>
-
-                    {activeDeployment.status === "failed" && (
-                      <button
-                        className="gh-btn gh-btn-primary"
-                        onClick={handleStartDeployment}
-                      >
-                        Retry Deployment
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Build Terminal Logs */}
+                  {/* Build & Container Log Terminal */}
                   {showBuildLogs && (
-                    <div className="deploy-log-terminal">
-                      {activeDeployment.buildLogs && activeDeployment.buildLogs.length > 0
-                        ? activeDeployment.buildLogs.join("\n")
-                        : "No build logs available yet."}
+                    <div className="deploy-log-terminal" style={{ marginTop: "14px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", paddingBottom: "6px" }}>
+                        <span style={{ fontWeight: "600", color: "#a7dda6", fontSize: "0.85rem" }}>Terminal Output Logs</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowBuildLogs(false)}
+                          style={{ background: "transparent", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: "0.8rem" }}
+                        >
+                          ✕ Close
+                        </button>
+                      </div>
+                      <pre style={{ margin: 0, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.82rem", color: "#e5e7eb" }}>
+                        {logLoading ? "Fetching runtime logs..." : logContent.length > 0 ? logContent.join("\n") : (activeDeployment.buildLogs || "No logs captured yet.")}
+                      </pre>
                     </div>
                   )}
                 </div>
@@ -1391,18 +1503,19 @@ function RepoDetail() {
                 <h3 className="gh-card-title" style={{ marginBottom: "14px", fontSize: "1rem" }}>Deployment History</h3>
                 {deployments.length === 0 ? (
                   <div style={{ padding: "32px", textAlign: "center", color: "#8b949e", background: "#0d1117", borderRadius: "8px", border: "1px solid var(--repo-line)" }}>
-                    No deployments recorded yet. Click <strong>🚀 Deploy New Version</strong> to publish your website to Netlify.
+                    No deployments recorded yet. Click <strong>🚀 Deploy Backend</strong> to launch your Node.js application in Docker.
                   </div>
                 ) : (
                   <div className="deploy-history-list">
                     {deployments.map((dep) => (
-                      <div key={dep._id} className="deploy-history-item">
+                      <div key={dep._id || dep.id} className="deploy-history-item">
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontWeight: 700, color: dep.status === "success" ? "#3fb950" : dep.status === "failed" ? "#f85149" : "#58a6ff" }}>
-                              {dep.status === "success" ? "✓ Production" : dep.status === "failed" ? "✗ Failed" : "⏳ " + dep.status}
+                            <span style={{ fontWeight: 700, color: ["live", "success"].includes(dep.status) ? "#3fb950" : dep.status === "failed" ? "#f85149" : dep.status === "stopped" ? "#e3b341" : "#58a6ff" }}>
+                              {["live", "success"].includes(dep.status) ? "● LIVE" : dep.status === "failed" ? "● FAILED" : dep.status === "stopped" ? "● STOPPED" : "● " + dep.status.toUpperCase()}
                             </span>
                             <span className="gh-commit-hash">Commit {dep.commitId ? dep.commitId.slice(0, 7) : "latest"}</span>
+                            <span style={{ fontSize: "0.75rem", background: "rgba(255, 255, 255, 0.08)", color: "#d1d5db", padding: "2px 6px", borderRadius: "4px" }}>Backend</span>
                           </div>
                           <div style={{ fontSize: "12px", color: "#8b949e", marginTop: "4px" }}>
                             {new Date(dep.createdAt).toLocaleString()}
@@ -1424,12 +1537,9 @@ function RepoDetail() {
                           <button
                             className="gh-btn"
                             style={{ fontSize: "12px", padding: "4px 8px" }}
-                            onClick={() => {
-                              setActiveDeployment(dep);
-                              setShowBuildLogs(true);
-                            }}
+                            onClick={() => handleFetchLogs(dep._id || dep.id)}
                           >
-                            Logs
+                            View Logs
                           </button>
                         </div>
                       </div>
@@ -2584,27 +2694,102 @@ function RepoDetail() {
       {/* Deploy Confirmation Modal */}
       {showDeployModal && (
         <div className="gh-upload-modal-backdrop" onClick={() => setShowDeployModal(false)}>
-          <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ display: "flex", alignItems: "center", gap: "8px" }}>🚀 Deploy Website to Netlify</h2>
-            <p style={{ fontSize: "13px", color: "var(--repo-text-soft)", margin: "8px 0 16px" }}>
-              GitRepo will download the commit snapshot files, install project dependencies, build the project output, and publish it live on Netlify.
+          <div className="gh-upload-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "560px", width: "92%" }}>
+            <h2 style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0, fontSize: "1.2rem", color: "#f0f6fc" }}>
+              🚀 Deploy Repository
+            </h2>
+            <p style={{ fontSize: "13px", color: "var(--repo-text-soft)", margin: "6px 0 16px" }}>
+              Build and run your Node.js/Express backend code inside an isolated Docker container with health checks.
             </p>
 
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "var(--repo-text)" }}>
-              Select Target Commit to Deploy:
-            </label>
-            <select
-              className="gh-modal-input"
-              value={deployCommitId}
-              onChange={(e) => setDeployCommitId(e.target.value)}
-              style={{ marginBottom: "16px" }}
-            >
-              {rawHistory.map((c) => (
-                <option key={c.hash} value={c.hash}>
-                  {c.hash.slice(0, 7)} - {c.message || "Commit update"} ({new Date(c.committedAt).toLocaleDateString()})
-                </option>
-              ))}
-            </select>
+            <div style={{ marginBottom: "14px", background: "rgba(255, 255, 255, 0.04)", padding: "10px 14px", borderRadius: "8px", border: "1px solid var(--repo-line)" }}>
+              <span style={{ fontSize: "12px", color: "#8b949e", display: "block" }}>Repository:</span>
+              <strong style={{ fontSize: "14px", color: "#58a6ff" }}>{repo.name || repo.repositoryName || "my-api"}</strong>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "var(--repo-text)" }}>
+                Deployment Type
+              </label>
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#f0f6fc", cursor: "pointer", fontWeight: 600 }}>
+                  <input type="radio" name="deployType" checked readOnly style={{ accentColor: "#238636" }} />
+                  ● Backend (Docker Container)
+                </label>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "var(--repo-text)" }}>
+                Select Commit
+              </label>
+              <select
+                className="gh-modal-input"
+                value={deployCommitId}
+                onChange={(e) => setDeployCommitId(e.target.value)}
+                style={{ width: "100%", padding: "8px 10px" }}
+              >
+                {rawHistory.map((c) => (
+                  <option key={c.hash} value={c.hash}>
+                    {c.hash.slice(0, 7)} - {c.message || "Commit update"} ({new Date(c.committedAt).toLocaleDateString()})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Environment Variables Section */}
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--repo-text)", margin: 0 }}>
+                  Environment Variables
+                </label>
+                <button
+                  type="button"
+                  className="gh-btn"
+                  onClick={handleAddEnvVar}
+                  style={{ fontSize: "12px", padding: "3px 8px" }}
+                >
+                  + Add Variable
+                </button>
+              </div>
+
+              {deployEnvVars.length === 0 ? (
+                <div style={{ fontSize: "12px", color: "#8b949e", fontStyle: "italic" }}>
+                  No environment variables added. Click "+ Add Variable" to specify secrets or settings.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "160px", overflowY: "auto" }}>
+                  {deployEnvVars.map((env, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <input
+                        type="text"
+                        placeholder="NAME (e.g. MONGO_URI)"
+                        value={env.name}
+                        onChange={(e) => handleUpdateEnvVar(idx, "name", e.target.value)}
+                        className="gh-modal-input"
+                        style={{ flex: "1", fontSize: "12px", padding: "6px 8px" }}
+                      />
+                      <input
+                        type="password"
+                        placeholder="VALUE"
+                        value={env.value}
+                        onChange={(e) => handleUpdateEnvVar(idx, "value", e.target.value)}
+                        className="gh-modal-input"
+                        style={{ flex: "1", fontSize: "12px", padding: "6px 8px" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEnvVar(idx)}
+                        style={{ background: "transparent", border: "none", color: "#f85149", cursor: "pointer", fontSize: "14px", padding: "0 4px" }}
+                        title="Remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {deployErrorMessage && (
               <div style={{
@@ -2617,30 +2802,7 @@ function RepoDetail() {
                 borderRadius: "8px",
                 border: "1px solid rgba(239, 68, 68, 0.3)"
               }}>
-                <div>{deployErrorMessage}</div>
-                {/Token|Netlify/i.test(deployErrorMessage) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const localUser = JSON.parse(localStorage.getItem("user") || "{}");
-                      const userSlug = localStorage.getItem("username") || localUser.username || "profile";
-                      navigate(`/${userSlug}`);
-                    }}
-                    style={{
-                      marginTop: "8px",
-                      background: "#818cf8",
-                      color: "#fff",
-                      border: "none",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      cursor: "pointer"
-                    }}
-                  >
-                    ⚙️ Open Profile Settings to add Netlify Token
-                  </button>
-                )}
+                {deployErrorMessage}
               </div>
             )}
 
@@ -2659,7 +2821,7 @@ function RepoDetail() {
                 onClick={handleStartDeployment}
                 disabled={isStartingDeploy}
               >
-                {isStartingDeploy ? "Starting..." : "🚀 Confirm & Deploy"}
+                {isStartingDeploy ? "Starting Build..." : "🚀 Deploy Backend"}
               </button>
             </div>
           </div>

@@ -12,42 +12,80 @@ const deploymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     commitId: {
       type: String,
       required: true,
     },
-    provider: {
+    type: {
       type: String,
-      default: "netlify",
+      enum: ["backend"],
+      default: "backend",
     },
-    siteId: {
+    projectName: {
       type: String,
       default: "",
     },
     status: {
       type: String,
-      enum: ["pending", "downloading", "installing", "building", "deploying", "success", "failed"],
-      default: "pending",
+      enum: [
+        "queued",
+        "pending",
+        "downloading",
+        "installing",
+        "building",
+        "starting",
+        "deploying",
+        "live",
+        "success",
+        "failed",
+        "stopped",
+      ],
+      default: "queued",
       index: true,
     },
-    buildCommand: {
+    containerId: {
       type: String,
       default: "",
     },
-    outputDirectory: {
+    containerName: {
       type: String,
       default: "",
+    },
+    internalPort: {
+      type: Number,
+      default: 3000,
+    },
+    hostPort: {
+      type: Number,
+      default: 0,
     },
     deploymentUrl: {
       type: String,
       default: "",
     },
-    buildLogs: {
-      type: [String],
-      default: [],
+    buildCommand: {
+      type: String,
+      default: "",
     },
-    errorMessage: {
+    startCommand: {
+      type: String,
+      default: "",
+    },
+    environmentVariables: {
+      type: Object,
+      default: {},
+    },
+    buildLogs: {
+      type: String,
+      default: "",
+    },
+    runtimeLogs: {
+      type: String,
+      default: "",
+    },
+    errorLogs: {
       type: String,
       default: "",
     },

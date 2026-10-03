@@ -7,11 +7,14 @@ const dns = require("dns");
 const path = require("path");
 const { authorizeB2 } = require("./backblaze");
 
+const { createProxyMiddleware } = require("./services/proxyService");
+
 const app = express();
 
 // Middleware
 app.use(express.json({ limit: "50mb" }));
 app.use(cors());
+app.use(createProxyMiddleware());
 
 // Serve static assets from frontend build if directory exists
 const distPath = path.join(__dirname, "../frontend/dist");
