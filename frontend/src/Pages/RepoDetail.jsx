@@ -280,6 +280,24 @@ function RepoDetail() {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const loggedInUsername = localStorage.getItem("username") || currentUser.username || currentUser.name || "Developer";
 
+  const isOwner = React.useMemo(() => {
+    if (!repo) return false;
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const uName = localStorage.getItem("username") || user.username || user.name || "";
+    const uEmail = user.gmail || user.email || "";
+
+    const rOwner = repo.owner || "";
+    const rEmail = repo.ownerEmail || "";
+
+    const normalizeStr = (str) => String(str || "").trim().toLowerCase().replace(/[\s-_]+/g, "");
+
+    if (rEmail && uEmail && normalizeStr(rEmail) === normalizeStr(uEmail)) return true;
+    if (rOwner && uName && normalizeStr(rOwner) === normalizeStr(uName)) return true;
+    if (rOwner && uEmail && normalizeStr(rOwner) === normalizeStr(uEmail)) return true;
+
+    return false;
+  }, [repo]);
+
   const fetchDeployments = async () => {
     if (!repo || !repo._id) return;
     try {
@@ -1270,23 +1288,27 @@ function RepoDetail() {
                 <span className="gh-btn-count">{starCount}</span>
               </button>
 
-              <button className="gh-btn gh-btn-primary" type="button" onClick={() => setShowUploadModal(true)}>
-                + Add File
-              </button>
+              {isOwner && (
+                <button className="gh-btn gh-btn-primary" type="button" onClick={() => setShowUploadModal(true)}>
+                  + Add File
+                </button>
+              )}
 
-              <button
-                className="gh-btn"
-                type="button"
-                onClick={() => {
-                  setDeployCommitId(repo.lastCommit?.hash || (rawHistory[0] ? rawHistory[0].hash : "main"));
-                  setDeployErrorMessage("");
-                  setShowDeployModal(true);
-                }}
-                style={{ borderColor: "rgba(167, 221, 166, 0.6)", color: "#a7dda6", background: "rgba(167, 221, 166, 0.12)" }}
-                title="Deploy repository code live to Netlify"
-              >
-                🚀 Deploy
-              </button>
+              {isOwner && (
+                <button
+                  className="gh-btn"
+                  type="button"
+                  onClick={() => {
+                    setDeployCommitId(repo.lastCommit?.hash || (rawHistory[0] ? rawHistory[0].hash : "main"));
+                    setDeployErrorMessage("");
+                    setShowDeployModal(true);
+                  }}
+                  style={{ borderColor: "rgba(167, 221, 166, 0.6)", color: "#a7dda6", background: "rgba(167, 221, 166, 0.12)" }}
+                  title="Deploy repository code live to Netlify"
+                >
+                  🚀 Deploy
+                </button>
+              )}
 
               <button
                 className="gh-btn gh-btn-green"
@@ -1350,27 +1372,33 @@ function RepoDetail() {
             >
               Code
             </button>
-            <button
-              className={`gh-btn ${activeTab === "commits" ? "gh-btn-primary" : ""}`}
-              onClick={() => setActiveTab("commits")}
-              type="button"
-            >
-              Commit Graph
-            </button>
-            <button
-              className={`gh-btn ${activeTab === "deploy" ? "gh-btn-primary" : ""}`}
-              onClick={() => setActiveTab("deploy")}
-              type="button"
-            >
-              🚀 Deployments {deployments.length > 0 && <span className="gh-btn-count">{deployments.length}</span>}
-            </button>
-            <button
-              className={`gh-btn ${activeTab === "settings" ? "gh-btn-primary" : ""}`}
-              onClick={() => setActiveTab("settings")}
-              type="button"
-            >
-              Settings
-            </button>
+            {isOwner && (
+              <button
+                className={`gh-btn ${activeTab === "commits" ? "gh-btn-primary" : ""}`}
+                onClick={() => setActiveTab("commits")}
+                type="button"
+              >
+                Commit Graph
+              </button>
+            )}
+            {isOwner && (
+              <button
+                className={`gh-btn ${activeTab === "deploy" ? "gh-btn-primary" : ""}`}
+                onClick={() => setActiveTab("deploy")}
+                type="button"
+              >
+                🚀 Deployments {deployments.length > 0 && <span className="gh-btn-count">{deployments.length}</span>}
+              </button>
+            )}
+            {isOwner && (
+              <button
+                className={`gh-btn ${activeTab === "settings" ? "gh-btn-primary" : ""}`}
+                onClick={() => setActiveTab("settings")}
+                type="button"
+              >
+                Settings
+              </button>
+            )}
           </div>
 
           {activeTab === "deploy" ? (
@@ -1886,30 +1914,34 @@ function RepoDetail() {
                               Branch: {b}
                             </option>
                           ))}
-                          <option value="__NEW_BRANCH__">+ Create New Branch...</option>
+                          {isOwner && <option value="__NEW_BRANCH__">+ Create New Branch...</option>}
                         </select>
-                        <button
-                          className="gh-btn"
-                          style={{ fontSize: "12px", padding: "6px 10px" }}
-                          type="button"
-                          onClick={openMergeModal}
-                          disabled={repoBranches.length < 2}
-                          title={repoBranches.length < 2 ? "Create at least one other branch to merge" : `Pull a branch into ${repo.defaultBranch || "main"}`}
-                        >
-                          Merge into {repo.defaultBranch || "main"}
-                        </button>
-                        <button
-                          className="gh-btn"
-                          style={{ fontSize: "12px", padding: "6px 10px" }}
-                          type="button"
-                          onClick={() => {
-                            setNewBranchInput("");
-                            setBranchError("");
-                            setShowCreateBranchModal(true);
-                          }}
-                        >
-                          + New Branch
-                        </button>
+                        {isOwner && (
+                          <button
+                            className="gh-btn"
+                            style={{ fontSize: "12px", padding: "6px 10px" }}
+                            type="button"
+                            onClick={openMergeModal}
+                            disabled={repoBranches.length < 2}
+                            title={repoBranches.length < 2 ? "Create at least one other branch to merge" : `Pull a branch into ${repo.defaultBranch || "main"}`}
+                          >
+                            Merge into {repo.defaultBranch || "main"}
+                          </button>
+                        )}
+                        {isOwner && (
+                          <button
+                            className="gh-btn"
+                            style={{ fontSize: "12px", padding: "6px 10px" }}
+                            type="button"
+                            onClick={() => {
+                              setNewBranchInput("");
+                              setBranchError("");
+                              setShowCreateBranchModal(true);
+                            }}
+                          >
+                            + New Branch
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -1954,7 +1986,7 @@ function RepoDetail() {
                           </div>
                         ))}
                       </div>
-                    ) : (
+                    ) : isOwner ? (
                       /* Interactive Drag & Drop Zone */
                       <div
                         className={`gh-dropzone ${isDragging ? "dragging" : ""}`}
@@ -2007,6 +2039,15 @@ function RepoDetail() {
                             {uploadMessage}
                           </div>
                         )}
+                      </div>
+                    ) : (
+                      <div className="gh-dropzone" style={{ cursor: "default" }}>
+                        <div className="gh-dropzone-title">
+                          Branch "{activeBranch}" is currently empty
+                        </div>
+                        <div className="gh-dropzone-sub">
+                          This repository owner has not added any files to branch "{activeBranch}" yet.
+                        </div>
                       </div>
                     )}
                   </section>
