@@ -68,14 +68,48 @@ async function createAndStartContainer({
     }
 
     const fsSync = require("fs");
-    const serverScript = tempDir ? path.join(tempDir, "server.js") : "";
+    if (tempDir && fsSync.existsSync(tempDir)) {
+      const pkgPath = path.join(tempDir, "package.json");
+      const nodeModulesPath = path.join(tempDir, "node_modules");
 
-    if (tempDir && fsSync.existsSync(serverScript)) {
-      const child = spawn("node", ["server.js"], {
+      if (fsSync.existsSync(pkgPath) && !fsSync.existsSync(nodeModulesPath)) {
+        if (appendLog) appendLog("Installing project dependencies for fallback process (npm install)...");
+        try {
+          const { execSync } = require("child_process");
+          execSync("npm install --no-audit --no-fund", { cwd: tempDir, timeout: 180000 });
+          if (appendLog) appendLog("Dependencies installed successfully.");
+        } catch (instErr) {
+          if (appendLog) appendLog("npm install notice: " + (instErr.message || instErr));
+        }
+      }
+
+      let entryScript = "server.js";
+      if (!fsSync.existsSync(path.join(tempDir, entryScript))) {
+        if (fsSync.existsSync(path.join(tempDir, "index.js"))) entryScript = "index.js";
+        else if (fsSync.existsSync(path.join(tempDir, "app.js"))) entryScript = "app.js";
+        else if (fsSync.existsSync(path.join(tempDir, "src/server.js"))) entryScript = "src/server.js";
+        else if (fsSync.existsSync(path.join(tempDir, "src/index.js"))) entryScript = "src/index.js";
+        else if (fsSync.existsSync(path.join(tempDir, "src/app.js"))) entryScript = "src/app.js";
+      }
+
+      const child = spawn("node", [entryScript], {
         cwd: tempDir,
         env: { ...process.env, PORT: String(hostPort), ...envVars },
-        stdio: "ignore"
+        stdio: ["ignore", "pipe", "pipe"]
       });
+
+      if (child.stdout && appendLog) {
+        child.stdout.on("data", (d) => {
+          const lines = d.toString().split("\n").filter(Boolean);
+          lines.forEach((line) => appendLog(`[App Out] ${line}`));
+        });
+      }
+      if (child.stderr && appendLog) {
+        child.stderr.on("data", (d) => {
+          const lines = d.toString().split("\n").filter(Boolean);
+          lines.forEach((line) => appendLog(`[App Err] ${line}`));
+        });
+      }
 
       activeProcesses.set(containerName, child);
       if (appendLog) appendLog(`Process container worker started (PID ${child.pid}) on http://localhost:${hostPort}`);

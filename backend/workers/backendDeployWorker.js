@@ -30,6 +30,8 @@ async function runBackendDeploymentWorker(deploymentId) {
   let allocatedHostPort = null;
   let containerName = "";
 
+  let isMockDeployment = false;
+
   try {
     const repo = await Repo.findById(deployment.repositoryId);
     if (!repo) throw new Error("Repository not found.");
@@ -116,6 +118,8 @@ CMD ["npm", "start"]
       appendLog,
     });
 
+    isMockDeployment = Boolean(mock);
+
     deployment.containerId = containerId;
     deployment.containerName = containerName;
     deployment.internalPort = internalPort;
@@ -173,9 +177,11 @@ CMD ["npm", "start"]
     deployment.completedAt = new Date();
     await deployment.save();
   } finally {
-    try {
-      await fs.rm(tempDir, { recursive: true, force: true });
-    } catch (_) {}
+    if (!isMockDeployment) {
+      try {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      } catch (_) {}
+    }
   }
 }
 
