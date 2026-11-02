@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { isAdminCredentials } from "../../auth/adminAuth.js";
 import { useLoading } from "../../context/LoadingContext";
 import "./Admin.css";
 
@@ -37,49 +36,18 @@ export default function AdminLogin() {
         body: JSON.stringify({ email: email.trim(), password })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem("user", JSON.stringify(data.user));
-        localStorage.setItem("username", data.user.username);
-        localStorage.setItem("userId", data.user.id);
-        navigate("/admin");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message || "Invalid admin email or password. Access denied.");
         return;
       }
 
-      if (isAdminCredentials(email, password)) {
-        const adminUser = {
-          id: "admin-1",
-          username: "Admin",
-          name: "System Administrator",
-          gmail: email.trim().toLowerCase(),
-          role: "admin",
-        };
-
-        localStorage.setItem("user", JSON.stringify(adminUser));
-        localStorage.setItem("username", adminUser.username);
-        localStorage.setItem("userId", adminUser.id);
-        navigate("/admin");
-        return;
-      }
-
-      setError("Invalid admin email or password. Access denied.");
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("username", data.user.username);
+      localStorage.setItem("userId", data.user.id);
+      navigate("/admin");
     } catch (err) {
-      if (isAdminCredentials(email, password)) {
-        const adminUser = {
-          id: "admin-1",
-          username: "Admin",
-          name: "System Administrator",
-          gmail: email.trim().toLowerCase(),
-          role: "admin",
-        };
-
-        localStorage.setItem("user", JSON.stringify(adminUser));
-        localStorage.setItem("username", adminUser.username);
-        localStorage.setItem("userId", adminUser.id);
-        navigate("/admin");
-      } else {
-        setError("Login error: " + err.message);
-      }
+      setError("Login error: " + err.message);
     } finally {
       stopLoading();
     }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import defaultProfile from "../assert/profile.png";
 import "./Admin.css";
@@ -14,7 +14,6 @@ export default function AdminLayout({ activeTab, setActiveTab, adminUser, childr
     { id: "groups", label: "Groups & Teams" },
     { id: "repos", label: "Repositories" },
     { id: "issues", label: "Issues" },
-    { id: "pull-requests", label: "Pull Requests" },
     { id: "reports", label: "Reports & Monitoring" },
     { id: "settings", label: "Settings" },
   ];

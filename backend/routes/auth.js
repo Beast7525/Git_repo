@@ -1,6 +1,7 @@
 const express = require("express");
 require("../net-setup").preferIpv4();
 const User = require("../models/User");
+const AdminAccount = require("../models/AdminAccount");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const { createAuthToken, optionalAuth, requireAuth } = require("../middleware/auth");
@@ -150,34 +151,60 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Admin Login Route (utilizes ADMIN_EMAIL and ADMIN_PASSWORD environment variables)
-router.post("/admin-login", (req, res) => {
+// Admin Login Route (initial account credentials come from ADMIN_EMAIL and ADMIN_PASSWORD).
+router.post("/admin-login", async (req, res) => {
   try {
     const { gmail, email, password } = req.body || {};
-    const inputEmail = (gmail || email || "").trim().toLowerCase();
-    const inputPassword = (password || "").trim();
+    const rawEmail = gmail || email;
+    if (typeof rawEmail !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "Email and password are required." });
+    }
+
+    const inputEmail = rawEmail.trim().toLowerCase();
+    const inputPassword = password;
 
     const expectedEmail = (process.env.ADMIN_EMAIL || "gitrepo02@gmail.com").trim().toLowerCase();
-    const expectedPassword = (process.env.ADMIN_PASSWORD || "admin12345").trim();
+    const expectedPassword = process.env.ADMIN_PASSWORD || "admin12345";
 
     if (!inputEmail || !inputPassword) {
       return res.status(400).json({ message: "Email and password are required." });
     }
 
-    if (inputEmail === expectedEmail && inputPassword === expectedPassword) {
-      return res.status(200).json({
-        message: "Admin login successful",
-        user: {
-          id: "admin-1",
-          username: "Admin",
+    let admin = await AdminAccount.findById("primary").select("+password");
+    if (!admin) {
+      if (inputEmail !== expectedEmail || inputPassword !== expectedPassword) {
+        return res.status(401).json({ message: "Invalid admin credentials" });
+      }
+
+      try {
+        admin = await AdminAccount.create({
+          _id: "primary",
           name: "System Administrator",
-          gmail: expectedEmail,
-          role: "admin",
-        },
-      });
+          email: expectedEmail,
+          password: expectedPassword,
+        });
+        admin = await AdminAccount.findById("primary").select("+password");
+      } catch (error) {
+        if (error.code !== 11000) throw error;
+        admin = await AdminAccount.findById("primary").select("+password");
+      }
     }
 
-    return res.status(401).json({ message: "Invalid admin credentials" });
+    if (!admin || admin.email !== inputEmail || !(await admin.comparePassword(inputPassword))) {
+      return res.status(401).json({ message: "Invalid admin credentials" });
+    }
+
+    return res.status(200).json({
+      message: "Admin login successful",
+      user: {
+        id: "admin-1",
+        username: admin.name,
+        name: admin.name,
+        gmail: admin.email,
+        bio: admin.bio,
+        role: "admin",
+      },
+    });
   } catch (error) {
     console.error("Admin login error:", error);
     res.status(500).json({ message: "Server error: " + error.message });
@@ -473,4 +500,3 @@ router.put("/netlify-token", optionalAuth, requireAuth, async (req, res) => {
 });
 
 module.exports = router;
-

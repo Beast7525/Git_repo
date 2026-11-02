@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./Login.css";
-import { isAdminCredentials } from "../auth/adminAuth.js";
 import { useLoading } from "../context/LoadingContext";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/+$/, "");
@@ -45,17 +44,16 @@ function Login() {
       setError("");
       setSuccess("");
 
-      if (isAdminCredentials(loginEmail, loginPassword)) {
-        const adminUser = {
-          id: "admin-1",
-          username: "Admin",
-          gmail: loginEmail,
-          role: "admin",
-        };
-
-        localStorage.setItem("user", JSON.stringify(adminUser));
-        localStorage.setItem("username", adminUser.username);
-        localStorage.setItem("userId", adminUser.id);
+      const adminResponse = await fetch(`${API_URL}/admin-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+      if (adminResponse.ok) {
+        const adminData = await adminResponse.json();
+        localStorage.setItem("user", JSON.stringify(adminData.user));
+        localStorage.setItem("username", adminData.user.username);
+        localStorage.setItem("userId", adminData.user.id);
         navigate(location.state?.from || "/admin", { replace: true });
         return;
       }

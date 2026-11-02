@@ -1,17 +1,30 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import defaultProfile from "../assert/profile.png";
-import { getAdminSettings, updateAdminSettings } from "./adminDataService";
+import {
+  changeAdminPassword,
+  getAdminSettings,
+  updateAdminProfile,
+  updateAdminSettings,
+} from "./adminDataService";
 import "./Admin.css";
 
-export default function AdminSettings({ showToast }) {
+export default function AdminSettings({ showToast, adminUser, onProfileUpdated }) {
   const [settings, setSettings] = useState(getAdminSettings());
   const [activeTab, setActiveTab] = useState("profile"); // profile | security | system | notifications
 
   // Profile Form
-  const [profileForm, setProfileForm] = useState(settings.profile || {});
+  const [profileForm, setProfileForm] = useState(() => ({
+    ...settings.profile,
+    name: adminUser?.name || adminUser?.username || settings.profile?.name || "",
+    email: adminUser?.gmail || adminUser?.email || settings.profile?.email || "",
+    bio: adminUser?.bio || settings.profile?.bio || "",
+  }));
+  const [profilePassword, setProfilePassword] = useState("");
 
   // Password Form
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
+  const [errorMessage, setErrorMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // System Form
   const [systemForm, setSystemForm] = useState(settings.system || {});
@@ -22,25 +35,52 @@ export default function AdminSettings({ showToast }) {
   // Notification Form
   const [notificationForm, setNotificationForm] = useState(settings.notifications || {});
 
-  function handleSaveProfile(e) {
+  async function handleSaveProfile(e) {
     e.preventDefault();
-    const updated = updateAdminSettings("profile", profileForm);
-    setSettings(updated);
-    showToast("Admin profile updated successfully!");
+    setErrorMessage("");
+    setSaving(true);
+    try {
+      const result = await updateAdminProfile(profileForm, profilePassword);
+      const updatedProfile = {
+        ...profileForm,
+        name: result.user.name,
+        email: result.user.gmail,
+      };
+      setProfileForm(updatedProfile);
+      setProfilePassword("");
+      setSettings(updateAdminSettings("profile", updatedProfile));
+      localStorage.setItem("user", JSON.stringify(result.user));
+      localStorage.setItem("username", result.user.username);
+      onProfileUpdated?.(result.user);
+      showToast(result.message);
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleChangePassword(e) {
+  async function handleChangePassword(e) {
     e.preventDefault();
+    setErrorMessage("");
     if (passwordForm.next !== passwordForm.confirm) {
-      alert("New password and confirmation do not match!");
+      setErrorMessage("New password and confirmation do not match.");
       return;
     }
     if (passwordForm.next.length < 8) {
-      alert("Password must be at least 8 characters long!");
+      setErrorMessage("Password must be at least 8 characters long.");
       return;
     }
-    setPasswordForm({ current: "", next: "", confirm: "" });
-    showToast("Admin password changed successfully!");
+    setSaving(true);
+    try {
+      const result = await changeAdminPassword(passwordForm.current, passwordForm.next);
+      setPasswordForm({ current: "", next: "", confirm: "" });
+      showToast(result.message);
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleSaveSystem(e) {
@@ -106,6 +146,11 @@ export default function AdminSettings({ showToast }) {
       {/* TAB 1: PROFILE & PASSWORD */}
       {activeTab === "profile" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+          {errorMessage && (
+            <div role="alert" className="loading-panel" style={{ gridColumn: "1 / -1" }}>
+              {errorMessage}
+            </div>
+          )}
           {/* Profile Form */}
           <div className="panel-card">
             <h3 className="panel-card-title" style={{ marginBottom: "18px" }}>Admin Profile Details</h3>
@@ -150,7 +195,19 @@ export default function AdminSettings({ showToast }) {
                 />
               </div>
 
-              <button type="submit" className="btn-primary" style={{ width: "100%" }}>
+              <div className="form-group">
+                <label>Current Password (required to save profile)</label>
+                <input
+                  type="password"
+                  className="form-control"
+                  required
+                  autoComplete="current-password"
+                  value={profilePassword}
+                  onChange={(e) => setProfilePassword(e.target.value)}
+                />
+              </div>
+
+              <button type="submit" className="btn-primary" style={{ width: "100%" }} disabled={saving}>
                 Save Profile Changes
               </button>
             </form>
@@ -193,7 +250,7 @@ export default function AdminSettings({ showToast }) {
                 />
               </div>
 
-              <button type="submit" className="btn-secondary" style={{ width: "100%", marginTop: "12px" }}>
+              <button type="submit" className="btn-secondary" style={{ width: "100%", marginTop: "12px" }} disabled={saving}>
                 Update Password
               </button>
             </form>

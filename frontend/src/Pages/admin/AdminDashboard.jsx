@@ -6,7 +6,6 @@ import UserManagementView from "./UserManagement";
 import GroupManagementView from "./GroupManagement";
 import RepoManagementView from "./RepoManagement";
 import IssueManagementView from "./IssueManagement";
-import PullRequestManagementView from "./PullRequestManagement";
 import ReportsMonitoringView from "./ReportsMonitoring";
 import AdminSettingsView from "./AdminSettings";
 
@@ -131,14 +130,15 @@ export default function AdminDashboard() {
           {activeTab === "issues" && (
             <IssueManagementView showToast={showToast} />
           )}
-          {activeTab === "pull-requests" && (
-            <PullRequestManagementView showToast={showToast} />
-          )}
           {activeTab === "reports" && (
             <ReportsMonitoringView showToast={showToast} />
           )}
           {activeTab === "settings" && (
-            <AdminSettingsView showToast={showToast} />
+            <AdminSettingsView
+              showToast={showToast}
+              adminUser={adminUser}
+              onProfileUpdated={setAdminUser}
+            />
           )}
         </>
       )}

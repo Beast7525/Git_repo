@@ -137,6 +137,7 @@ function getStoredData(key, fallback) {
     const item = localStorage.getItem(key);
     return item ? JSON.parse(item) : fallback;
   } catch (err) {
+    console.error(`Failed to read admin data "${key}" from local storage:`, err);
     return fallback;
   }
 }
@@ -144,7 +145,9 @@ function getStoredData(key, fallback) {
 function setStoredData(key, data) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-  } catch (err) {}
+  } catch (err) {
+    console.error(`Failed to save admin data "${key}" to local storage:`, err);
+  }
 }
 
 export function initAdminDataStore() {
@@ -416,4 +419,25 @@ export function updateAdminSettings(section, values) {
   };
   setStoredData(STORAGE_KEYS.SETTINGS, updated);
   return updated;
+}
+
+async function updateAdminAccount(endpoint, payload) {
+  const res = await fetch(`${API_BASE_URL}/${endpoint}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || `Admin account update failed with status ${res.status}`);
+  }
+  return data;
+}
+
+export function updateAdminProfile(profile, currentPassword) {
+  return updateAdminAccount("profile", { ...profile, currentPassword });
+}
+
+export function changeAdminPassword(currentPassword, newPassword) {
+  return updateAdminAccount("password", { currentPassword, newPassword });
 }

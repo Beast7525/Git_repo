@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const User = require("../models/User");
+const AdminAccount = require("../models/AdminAccount");
 const Issue = require("../models/Issue");
 const Repo = require("../models/Repo");
 const PullRequest = require("../models/PullRequest");
@@ -8,6 +9,86 @@ const Group = require("../models/Group");
 const { sendSuspensionEmail } = require("../mailer");
 
 const router = express.Router();
+
+function formatAdminUser(admin) {
+  return {
+    id: "admin-1",
+    username: admin.name,
+    name: admin.name,
+    gmail: admin.email,
+    bio: admin.bio,
+    role: "admin",
+  };
+}
+
+// PUT /api/admin/profile - Update the admin profile after verifying the current password
+router.put("/profile", async (req, res) => {
+  try {
+    const { name, email, bio, currentPassword } = req.body || {};
+    if (
+      typeof name !== "string" ||
+      typeof email !== "string" ||
+      typeof currentPassword !== "string" ||
+      !name.trim() ||
+      !email.trim() ||
+      !currentPassword
+    ) {
+      return res.status(400).json({ message: "Name, email, and current password are required." });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ message: "Please provide a valid email address." });
+    }
+
+    const admin = await AdminAccount.findById("primary").select("+password");
+    if (!admin || !(await admin.comparePassword(currentPassword))) {
+      return res.status(401).json({ message: "Current password is incorrect." });
+    }
+
+    admin.name = name.trim();
+    admin.email = email.trim().toLowerCase();
+    admin.bio = typeof bio === "string" ? bio.trim() : "";
+    await admin.save();
+
+    return res.status(200).json({
+      message: "Admin profile updated successfully.",
+      user: formatAdminUser(admin),
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: "That email address is already in use." });
+    }
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
+    console.error("Admin profile update error:", error);
+    return res.status(500).json({ message: "Unable to update admin profile." });
+  }
+});
+
+// PUT /api/admin/password - Change the admin password after verifying the current password
+router.put("/password", async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string" || !currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current and new passwords are required." });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters long." });
+    }
+
+    const admin = await AdminAccount.findById("primary").select("+password");
+    if (!admin || !(await admin.comparePassword(currentPassword))) {
+      return res.status(401).json({ message: "Current password is incorrect." });
+    }
+
+    admin.password = newPassword;
+    await admin.save();
+    return res.status(200).json({ message: "Admin password updated successfully." });
+  } catch (error) {
+    console.error("Admin password update error:", error);
+    return res.status(500).json({ message: "Unable to update admin password." });
+  }
+});
 
 // GET /api/admin/stats - Derive platform stats from database models
 router.get("/stats", async (req, res) => {
