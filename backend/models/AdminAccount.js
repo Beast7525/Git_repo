@@ -29,4 +29,26 @@ adminAccountSchema.methods.comparePassword = function (passwordInput) {
   return bcrypt.compare(passwordInput, this.password);
 };
 
+adminAccountSchema.statics.findOrInitialize = async function (initialPassword) {
+  let admin = await this.findById("primary").select("+password");
+  if (admin) return admin;
+
+  const expectedEmail = (process.env.ADMIN_EMAIL || "gitrepo02@gmail.com").trim().toLowerCase();
+  const expectedPassword = process.env.ADMIN_PASSWORD || "admin12345";
+  if (initialPassword !== expectedPassword) return null;
+
+  try {
+    await this.create({
+      _id: "primary",
+      name: "System Administrator",
+      email: expectedEmail,
+      password: expectedPassword,
+    });
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+  }
+
+  return this.findById("primary").select("+password");
+};
+
 module.exports = mongoose.model("AdminAccount", adminAccountSchema);

@@ -163,32 +163,11 @@ router.post("/admin-login", async (req, res) => {
     const inputEmail = rawEmail.trim().toLowerCase();
     const inputPassword = password;
 
-    const expectedEmail = (process.env.ADMIN_EMAIL || "gitrepo02@gmail.com").trim().toLowerCase();
-    const expectedPassword = process.env.ADMIN_PASSWORD || "admin12345";
-
     if (!inputEmail || !inputPassword) {
       return res.status(400).json({ message: "Email and password are required." });
     }
 
-    let admin = await AdminAccount.findById("primary").select("+password");
-    if (!admin) {
-      if (inputEmail !== expectedEmail || inputPassword !== expectedPassword) {
-        return res.status(401).json({ message: "Invalid admin credentials" });
-      }
-
-      try {
-        admin = await AdminAccount.create({
-          _id: "primary",
-          name: "System Administrator",
-          email: expectedEmail,
-          password: expectedPassword,
-        });
-        admin = await AdminAccount.findById("primary").select("+password");
-      } catch (error) {
-        if (error.code !== 11000) throw error;
-        admin = await AdminAccount.findById("primary").select("+password");
-      }
-    }
+    const admin = await AdminAccount.findOrInitialize(inputPassword);
 
     if (!admin || admin.email !== inputEmail || !(await admin.comparePassword(inputPassword))) {
       return res.status(401).json({ message: "Invalid admin credentials" });

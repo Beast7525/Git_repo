@@ -39,7 +39,7 @@ router.put("/profile", async (req, res) => {
       return res.status(400).json({ message: "Please provide a valid email address." });
     }
 
-    const admin = await AdminAccount.findById("primary").select("+password");
+    const admin = await AdminAccount.findOrInitialize(currentPassword);
     if (!admin || !(await admin.comparePassword(currentPassword))) {
       return res.status(401).json({ message: "Current password is incorrect." });
     }
@@ -76,7 +76,7 @@ router.put("/password", async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 8 characters long." });
     }
 
-    const admin = await AdminAccount.findById("primary").select("+password");
+    const admin = await AdminAccount.findOrInitialize(currentPassword);
     if (!admin || !(await admin.comparePassword(currentPassword))) {
       return res.status(401).json({ message: "Current password is incorrect." });
     }
